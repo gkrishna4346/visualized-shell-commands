@@ -1,0 +1,1591 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Visualized Shell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Monoton&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- Theme tokens: navy · white · orange · grey (red only for danger) ---------- */
+:root{
+  --bg:#EDF0F5; --panel:#FFFFFF; --ink:#14203F; --muted:#5E687C; --line:#D5DAE3; --chip:#F2F4F8;
+  --navy:#1B2A5B; --navy-deep:#0F1A3C; --org:#EE7B22; --org-ink:#B9580C; --org-soft:#FFF0E2;
+  --grey:#8A93A6; --grey-soft:#EEF0F4; --red:#C62828; --red-soft:#FDECEA;
+  --head:#1B2A5B;
+  --sans:'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono:'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --gap:8px;
+  /* terminal skins: these mimic the real apps so each shell is recognisable at a glance */
+  --t-cmd:#0C0C0C; --t-cmd-ink:#CCCCCC; --t-ps:#012456; --t-ps-ink:#EEEDF0; --t-sh:#300A24; --t-sh-ink:#EEEEEC;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0A1330; --panel:#121E46; --ink:#E7EBF6; --muted:#9AA6C4; --line:#24346B; --chip:#1A295A;
+  --navy:#9DB2F0; --navy-deep:#0B1535; --org:#FF9A45; --org-ink:#FFAA5E; --org-soft:#3A2616;
+  --grey:#8C97B5; --grey-soft:#1A2753; --red:#FF6B6B; --red-soft:#3A1720; --head:#FFFFFF; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0A1330; --panel:#121E46; --ink:#E7EBF6; --muted:#9AA6C4; --line:#24346B; --chip:#1A295A;
+  --navy:#9DB2F0; --navy-deep:#0B1535; --org:#FF9A45; --org-ink:#FFAA5E; --org-soft:#3A2616;
+  --grey:#8C97B5; --grey-soft:#1A2753; --red:#FF6B6B; --red-soft:#3A1720; --head:#FFFFFF; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit}
+code,.mono{font-family:var(--mono);font-size:.92em}
+:focus-visible{outline:2px solid var(--org);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+.app{height:100%;padding:1vh 1vw;display:grid;grid-template-rows:auto 1fr auto;gap:var(--gap)}
+.site-foot{text-align:center;font-size:12px;color:var(--muted);padding:2px 0}
+.site-foot a{color:var(--org-ink);text-decoration:none;font-weight:600}
+.site-foot a:hover{text-decoration:underline}
+header{display:grid;grid-template-columns:auto 1fr auto auto auto;align-items:center;column-gap:18px;min-height:46px}
+.brand{font-family:'Monoton','Schibsted Grotesk',system-ui,sans-serif;font-size:clamp(1.6rem,2.4vw,2.1rem);line-height:1;letter-spacing:.02em;color:var(--navy);user-select:none}
+:root[data-theme="dark"] .brand{color:var(--org)}
+h1{margin:0;color:var(--org-ink);font-size:clamp(1.2rem,2.2vw,1.9rem);font-weight:700;letter-spacing:-.025em;line-height:1}
+h1 small{font-size:.5em;font-weight:500;color:var(--muted);letter-spacing:0;margin-left:10px}
+.theme-btn{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;display:grid;place-items:center}
+.theme-btn svg{width:18px;height:18px}
+:root[data-theme="dark"] .theme-btn{background:var(--org);color:#0A1330;border-color:transparent}
+.search{width:clamp(200px,22vw,300px);display:flex;align-items:center;gap:6px;padding:0 10px;height:36px;border:1px solid var(--line);border-radius:18px;background:var(--panel);color:var(--muted)}
+.search svg{width:15px;height:15px;flex:none}
+.search input{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);font:13px var(--sans);outline:none}
+.search kbd{font:11px var(--mono);border:1px solid var(--line);border-radius:4px;padding:0 5px;line-height:16px}
+.search:focus-within{border-color:var(--org)} .search:focus-within kbd{display:none}
+
+/* shell visibility switch */
+.shells{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:18px;padding:3px;background:var(--panel)}
+.shells span{font-size:12px;color:var(--muted);padding:0 6px 0 8px}
+.shells button{border:1px solid transparent;border-radius:14px;padding:4px 11px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:6px;transition:background .15s,color .15s}
+.shells button i{width:12px;height:12px;border-radius:50%;border:1.5px solid currentColor;display:grid;place-items:center}
+.shells button[aria-pressed="false"]{border-style:dashed;border-color:var(--line);text-decoration:line-through;text-decoration-color:var(--grey)}
+.shells button[aria-pressed="true"]{color:#fff}
+.shells button[aria-pressed="true"] i{border-color:#fff;background:#fff;box-shadow:inset 0 0 0 2px currentColor}
+.shells button[aria-pressed="true"] i::after{content:"";width:6px;height:3px;border-left:1.6px solid var(--k);border-bottom:1.6px solid var(--k);transform:translateY(-1px) rotate(-45deg)}
+.shells button.sw-cmd[aria-pressed="true"]{background:#4A5163;--k:#4A5163}
+.shells button.sw-ps[aria-pressed="true"]{background:#2F64C9;--k:#2F64C9}
+.shells button.sw-sh[aria-pressed="true"]{background:var(--org-ink);--k:var(--org-ink)}
+:root[data-theme="dark"] .shells button.sw-sh[aria-pressed="true"]{background:#C9661A;--k:#C9661A}
+.shells button[aria-pressed="true"] i{box-shadow:none}
+
+.main{display:grid;grid-template-columns:minmax(230px,16fr) 84fr;gap:var(--gap);min-height:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+.panel-head{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:13.5px;font-weight:600;flex:none;min-height:40px}
+.panel-head .hint{margin-left:auto;font-weight:400;color:var(--muted);font-size:12.5px}
+.panel-body{flex:1;min-height:0;overflow:auto;scrollbar-width:thin}
+
+/* ---------- Sidebar ---------- */
+.side nav{padding:6px}
+.group-label{font-size:11.5px;color:var(--muted);padding:10px 6px 4px;font-weight:600}
+.cat+.cat{margin-top:5px}
+.sec{width:100%;display:flex;align-items:center;gap:8px;text-align:left;border:0;cursor:pointer;padding:7px 10px;border-radius:8px;background:var(--navy-deep);color:#8F9BB8;font-size:12px;line-height:1.3}
+:root[data-theme="dark"] .sec{background:#1C2C66}
+.sec-text{flex:1;min-width:0}
+.sec b{display:block;color:#F3F5FA;font-size:13px;font-weight:600}
+.sec .count{flex:none;min-width:22px;height:18px;padding:0 6px;border-radius:9px;background:var(--org);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center}
+.sec .chev{flex:none;width:14px;height:14px;color:#F3F5FA;transition:transform .2s}
+.sec[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.sec.gp[aria-current="true"]{box-shadow:inset 3px 0 0 var(--org)}
+.items{list-style:none;margin:4px 0 2px;padding:0 0 0 6px}
+.items[hidden],.cat[hidden],.nomatch[hidden]{display:none}
+.items button{width:100%;text-align:left;border:0;background:transparent;cursor:pointer;padding:5px 8px;border-radius:6px;font-size:12.5px;color:var(--ink);display:grid;grid-template-columns:auto 1fr;column-gap:8px;align-items:baseline}
+.items button code{font-weight:600;color:var(--navy);font-size:12px}
+.items button .pt{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.items button .via{grid-column:1/-1;font:11px var(--mono);color:var(--org-ink);margin-top:1px}
+.items button:hover{background:var(--chip)}
+.items button[aria-current="true"]{background:var(--org-soft)}
+.items button[aria-current="true"] code{color:var(--org-ink)}
+.nomatch{margin:12px;color:var(--muted);font-size:13px;text-align:center;line-height:1.5}
+
+/* ---------- Content column ---------- */
+.view{min-height:0;min-width:0;overflow:auto;scrollbar-width:thin;display:flex;flex-direction:column;gap:var(--gap);padding-right:2px}
+.view>*{flex:none}
+.row{display:grid;gap:var(--gap);grid-template-columns:1fr 1fr;min-width:0}
+.row.r46{grid-template-columns:4fr 6fr}
+.row>.panel{min-height:0}
+
+.hero{display:flex;align-items:center;gap:16px;padding:12px 16px;flex-wrap:wrap}
+.hero .nm{font:600 clamp(1.6rem,2.6vw,2.2rem)/1 var(--mono);color:var(--head);letter-spacing:-.02em}
+.hero .tt h2{margin:0;font-size:18px;letter-spacing:-.01em}
+.hero .tt p{margin:3px 0 0;color:var(--muted);font-size:13px}
+.hero .badges{display:flex;gap:6px;flex-wrap:wrap}
+.hero .nav2{margin-left:auto;display:flex;gap:6px}
+.badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.badge.B{background:var(--grey-soft);color:var(--ink)}
+.badge.I{background:var(--org-soft);color:var(--org-ink);border-color:transparent}
+.badge.A{background:var(--navy);color:#fff;border-color:transparent}
+:root[data-theme="dark"] .badge.A{color:#0A1330}
+.badge.D{background:var(--red-soft);color:var(--red);border-color:transparent}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:16px;padding:5px 12px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;color:var(--ink)}
+.btn:hover{border-color:var(--org)}
+.btn svg{width:14px;height:14px}
+.btn.primary{background:var(--org);border-color:var(--org);color:#fff}
+:root[data-theme="dark"] .btn.primary{color:#0A1330}
+
+/* terminals */
+.player{margin-left:auto;display:flex;align-items:center;gap:6px}
+.terms{display:grid;gap:10px;padding:12px;grid-template-columns:repeat(var(--n,3),minmax(0,1fr))}
+.term{border-radius:10px;overflow:hidden;display:flex;flex-direction:column;min-width:0;border:1px solid rgba(0,0,0,.25)}
+.term-bar{display:flex;align-items:center;gap:8px;padding:7px 10px;font-size:12px;font-weight:600;background:rgba(255,255,255,.07);color:#fff}
+.term-bar .dots{display:flex;gap:5px} .term-bar .dots i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.22)}
+.term-bar .al{font:500 11px var(--mono);opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.term-bar .cp{margin-left:auto;border:1px solid rgba(255,255,255,.2);background:transparent;color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;flex:none}
+.term-bar .cp:hover{border-color:var(--org)}
+.term-body{padding:10px 12px 12px;font:12px/1.55 var(--mono);white-space:pre;min-height:150px;max-height:300px;overflow:auto;scrollbar-width:thin}
+.t-cmd{background:var(--t-cmd);color:var(--t-cmd-ink)} .t-ps{background:var(--t-ps);color:var(--t-ps-ink)} .t-sh{background:var(--t-sh);color:var(--t-sh-ink)}
+.t-sh .pu{color:#8AE234;font-weight:600} .t-sh .pp{color:#729FCF;font-weight:600}
+.t-ps .pr{color:#EEEDF0} .t-cmd .pr{color:#CCCCCC}
+.term .cm{color:#fff;font-weight:600}
+.t-ps .cm .v{color:#F9F1A5}
+.term .na{color:rgba(255,255,255,.55);font-family:var(--sans);font-size:13px;line-height:1.5;white-space:normal}
+.term .na b{display:block;color:#fff;margin-bottom:4px}
+.cur{display:inline-block;width:.6em;height:1.15em;background:currentColor;vertical-align:-3px;animation:blink 1.1s steps(1) infinite;opacity:.8}
+@keyframes blink{50%{opacity:0}}
+.term .o-line[hidden],.term .nx[hidden]{display:none}
+
+/* anatomy */
+.anat{padding:12px 14px;display:grid;gap:10px}
+.anat .line{font:600 15px/1.6 var(--mono);padding:10px 12px;border-radius:8px;background:var(--chip);overflow-x:auto;white-space:nowrap}
+.anat .line span{padding:1px 2px;border-radius:3px;cursor:default;box-shadow:inset 0 -2px 0 transparent;transition:background .15s}
+.anat .line span.k0{color:var(--navy)} :root[data-theme="dark"] .anat .line span.k0{color:#fff}
+.anat .line span.k1{color:var(--org-ink)} .anat .line span.k2{color:var(--grey)}
+.anat .line span.on{background:var(--org-soft);box-shadow:inset 0 -2px 0 var(--org)}
+.anat ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.anat li{display:grid;grid-template-columns:minmax(80px,auto) 1fr;gap:10px;font-size:13px;line-height:1.45;padding:4px 6px;border-radius:6px}
+.anat li code{color:var(--org-ink);font-weight:600;white-space:nowrap}
+.anat li.on{background:var(--org-soft)}
+
+/* visual: tree */
+.viz{padding:12px 14px}
+.viz .seg{display:inline-flex;border:1px solid var(--line);border-radius:15px;overflow:hidden}
+.seg button{border:0;background:transparent;font-size:12px;font-weight:600;color:var(--muted);padding:5px 10px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--chip);color:var(--ink)}
+.tree{list-style:none;margin:0;padding:0;font:13px/1.5 var(--mono)}
+.tree ul{list-style:none;margin:0;padding:0 0 0 18px;border-left:1px dashed var(--line);margin-left:7px}
+.tree .nd{display:flex;align-items:center;gap:7px;padding:2px 6px;border-radius:5px;transition:background .3s,opacity .3s}
+.tree .nd svg{width:15px;height:15px;flex:none;color:var(--grey)}
+.tree .nd.dir svg{color:var(--navy)}
+.tree .tag{font:600 10.5px var(--sans);padding:1px 7px;border-radius:9px;margin-left:4px}
+.tree .add{background:var(--org-soft)} .tree .add .tag{background:var(--org);color:#fff}
+.tree .del{opacity:.55} .tree .del .nm2{text-decoration:line-through} .tree .del .tag{background:var(--red-soft);color:var(--red)}
+.tree .shw{background:var(--chip)} .tree .shw .tag{background:var(--navy);color:#fff}
+:root[data-theme="dark"] .tree .shw .tag,:root[data-theme="dark"] .tree .add .tag{color:#0A1330}
+.tree .here .tag{background:var(--navy);color:#fff}
+.tree.pre .add{display:none}
+.tree.pre .del{opacity:1} .tree.pre .del .nm2{text-decoration:none}
+.tree.pre .tag{display:none} .tree.pre .here0 .tag{display:inline}
+.tree.pre .shw{background:transparent}
+.vizhead{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:12.5px;color:var(--muted)}
+
+/* visual: stages */
+.stages{display:flex;align-items:stretch;gap:6px;overflow-x:auto;padding-bottom:4px}
+.stage{flex:1 1 0;min-width:150px;border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;flex-direction:column}
+.stage h4{margin:0;padding:6px 10px;font:600 12px var(--mono);background:var(--chip);border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stage div{padding:6px 0;font:12px/1.65 var(--mono)}
+.stage p{margin:0;padding:0 10px;white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.stage p.hl{background:var(--org-soft);color:var(--org-ink);font-weight:600}
+.stage.dim p:not(.hl){opacity:.5}
+.arrow{flex:none;align-self:center;color:var(--org);width:20px}
+
+/* visual: permissions */
+.perm{display:grid;gap:12px}
+.pgrid{display:grid;grid-template-columns:70px repeat(3,52px) 54px;justify-content:start;gap:6px;align-items:center;font-size:13px}
+.pgrid .h{font-size:11.5px;color:var(--muted);text-align:center;font-weight:600}
+.pgrid button{height:34px;border-radius:7px;border:1px solid var(--line);background:var(--panel);font:600 14px var(--mono);cursor:pointer;color:var(--muted)}
+.pgrid button[aria-pressed="true"]{background:var(--org);border-color:var(--org);color:#fff}
+:root[data-theme="dark"] .pgrid button[aria-pressed="true"]{color:#0A1330}
+.pgrid .dg{font:600 22px var(--mono);text-align:center;color:var(--head)}
+.pout{display:grid;gap:6px;font-size:13px}
+.pout code{font-size:14px;padding:2px 6px;border-radius:5px;background:var(--chip)}
+
+/* flags table */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th,.tbl td{padding:8px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+.tbl th{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap;background:var(--panel);position:sticky;top:0}
+.tbl td:first-child{font-weight:500;min-width:150px}
+.tbl tr:last-child td{border-bottom:0}
+.tbl code{color:var(--ink);background:var(--chip);padding:1px 6px;border-radius:4px;font-size:12px;line-height:1.7;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.tbl .mu{color:var(--muted);font-size:12px}
+.tbl code.cpy{cursor:copy}
+.tbl code.cpy:hover{box-shadow:inset 0 0 0 1px var(--org)}
+.th-sh{display:inline-flex;align-items:center;gap:6px}
+.th-sh i{width:8px;height:8px;border-radius:50%}
+.c-cmd i{background:#7D8597} .c-ps i{background:#2F64C9} .c-sh i{background:var(--org)}
+.wrapx{overflow-x:auto}
+
+/* callouts */
+.cos{padding:12px 14px;display:grid;gap:8px}
+.co{padding:9px 12px;border-radius:8px;font-size:13px;line-height:1.5;border-left:3px solid var(--navy);background:var(--chip)}
+.co.warn{border-color:var(--org);background:var(--org-soft)}
+.co.danger{border-color:var(--red);background:var(--red-soft)}
+.co b.k{display:block;font-size:11.5px;margin-bottom:2px;color:var(--muted)}
+.co.warn b.k{color:var(--org-ink)} .co.danger b.k{color:var(--red)}
+.co code{background:rgba(127,127,127,.14);padding:0 4px;border-radius:3px}
+
+/* Q&A */
+.qa{padding:8px 12px;display:grid;gap:6px}
+.qa details{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.qa summary{cursor:pointer;padding:9px 12px;font-size:13.5px;font-weight:600;list-style:none;display:flex;gap:10px;align-items:flex-start}
+.qa summary::-webkit-details-marker{display:none}
+.qa summary .q{flex:none;font-size:11px;font-weight:700;color:#fff;background:var(--navy);border-radius:5px;padding:1px 6px;margin-top:2px}
+:root[data-theme="dark"] .qa summary .q{color:#0A1330}
+.qa details[open] summary{background:var(--chip)}
+.qa .a{padding:9px 12px 11px 44px;font-size:13px;line-height:1.55;color:var(--ink)}
+.qa .meta{display:flex;align-items:center;gap:8px;padding:0 12px 10px 44px;font-size:12px;color:var(--muted)}
+.qa .meta label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.qa .meta a{color:var(--org-ink);font-weight:600;text-decoration:none;cursor:pointer}
+.qa details.known summary{opacity:.6}
+
+/* pages */
+.page{padding:22px clamp(16px,3vw,40px) 30px;max-width:1180px}
+.page h2{margin:0 0 6px;font-size:clamp(1.4rem,2.4vw,2rem);letter-spacing:-.025em;color:var(--head)}
+.page .welcome{margin:0 0 10px;font:600 14px var(--sans);color:var(--org-ink)}
+.page .lede{margin:0 0 22px;color:var(--muted);font-size:15px;line-height:1.55;max-width:70ch}
+.page h3{margin:26px 0 10px;font-size:16px}
+.page p{line-height:1.55;max-width:75ch}
+.stack{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin:8px 0 4px}
+.layer{flex:1 1 200px;padding:14px 16px;border:1px solid var(--line);background:var(--panel);font-size:13px;line-height:1.5}
+.layer:first-child{border-radius:10px 0 0 10px} .layer:last-child{border-radius:0 10px 10px 0}
+.layer+.layer{border-left:0}
+.layer b{display:block;font-size:15px;margin-bottom:4px}
+.layer .eg{margin-top:8px;color:var(--muted);font-size:12.5px}
+.layer.mid{background:var(--org-soft);border-color:var(--org)}
+.layer.mid+.layer{border-left:0}
+.fam{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.famc{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+.famc .tb{padding:10px 14px;color:#fff;font:600 14px var(--sans);display:flex;justify-content:space-between;align-items:center}
+.famc .tb span{font:500 11.5px var(--mono);opacity:.75}
+.famc ul{margin:0;padding:10px 14px 12px 30px;font-size:13px;line-height:1.55}
+.tryrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tryrow button{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:4px 11px;font:600 12.5px var(--mono);cursor:pointer;color:var(--ink)}
+.tryrow button:hover{border-color:var(--org);color:var(--org-ink)}
+.howto{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;counter-reset:s}
+.howto div{border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.5;background:var(--panel)}
+.howto div::before{counter-increment:s;content:counter(s);display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--org);color:#fff;font-weight:700;font-size:12px;margin-bottom:8px}
+.cardtbl{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+.cardtbl .tbl td:first-child{min-width:170px}
+.cs-cat td{background:var(--navy-deep);color:#F3F5FA;font-weight:600;font-size:12.5px}
+:root[data-theme="dark"] .cs-cat td{background:#1C2C66}
+.linkish{border:0;background:none;padding:0;cursor:pointer;color:var(--ink);font:500 13px var(--sans);text-align:left}
+.linkish:hover{color:var(--org-ink);text-decoration:underline}
+.filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px}
+.filters button{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:4px 11px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink)}
+.filters button[aria-pressed="true"]{background:var(--org);border-color:var(--org);color:#fff}
+:root[data-theme="dark"] .filters button[aria-pressed="true"]{color:#0A1330}
+.progress{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);margin:0 0 14px}
+.progress .bar{flex:0 1 260px;height:8px;border-radius:4px;background:var(--chip);overflow:hidden}
+.progress .bar i{display:block;height:100%;background:var(--org);transition:width .3s}
+.page .qa{padding:0}
+.qgroup{font-size:12px;font-weight:600;color:var(--muted);margin:14px 0 2px}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);background:var(--navy-deep);color:#fff;font-size:13px;padding:8px 14px;border-radius:8px;opacity:0;pointer-events:none;transition:.2s}
+.toast.show{opacity:1;transform:translateX(-50%)}
+
+@media (max-width: 1250px){ .terms{grid-template-columns:1fr} .term-body{min-height:0} .howto{grid-template-columns:1fr 1fr} }
+@media (max-width: 1100px){
+  body{overflow:auto;height:auto}
+  .app{height:auto}
+  .main{grid-template-columns:minmax(0,1fr)}
+  .app{padding:8px}
+  .hero .nav2{margin-left:0}
+  .side .panel-body{max-height:38vh}
+  .view{overflow:visible}
+  .row,.row.r46{grid-template-columns:minmax(0,1fr)}
+  header{grid-template-columns:auto 1fr auto;row-gap:8px}
+  .shells{grid-column:1/-1;order:3;justify-self:start}
+  .search{grid-column:1/-1;width:100%;order:4}
+  .fam{grid-template-columns:1fr}
+  .stack{flex-direction:column} .layer,.layer:first-child,.layer:last-child{border-radius:0} .layer+.layer{border-left:1px solid var(--line);border-top:0}
+  .layer:first-child{border-radius:10px 10px 0 0} .layer:last-child{border-radius:0 0 10px 10px}
+}
+@media (max-width: 560px){ .panel-head .hint{display:none} .howto{grid-template-columns:1fr} .shells span{display:none} h1 small{display:none} }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <span class="brand" role="img" aria-label="GK">GK</span>
+    <h1>Visualized Shell<small>One task, three shells</small></h1>
+    <div class="shells" role="group" aria-label="Shells to show">
+      <span>Show</span>
+      <button class="sw-cmd" data-sh="cmd" aria-pressed="true"><i></i>CMD</button>
+      <button class="sw-ps" data-sh="ps" aria-pressed="true"><i></i>PowerShell</button>
+      <button class="sw-sh" data-sh="sh" aria-pressed="true"><i></i>Bash / zsh</button>
+    </div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" id="search" placeholder="Type any command: dir, ls, Get-ChildItem…" aria-label="Search commands in any shell" autocomplete="off">
+      <kbd aria-hidden="true">/</kbd>
+    </div>
+    <button class="theme-btn" id="themeBtn" aria-label="Switch to dark theme"></button>
+  </header>
+
+  <div class="main">
+    <aside class="panel side" aria-label="Topics">
+      <div class="panel-head">Topics<span class="hint" id="totalHint"></span></div>
+      <div class="panel-body"><nav id="nav"></nav><p class="nomatch" id="nomatch" hidden>No command matches. Try a name from any shell, like <b>findstr</b>, <b>Select-String</b> or <b>grep</b>.</p></div>
+    </aside>
+    <main class="view" id="view" tabindex="-1"></main>
+  </div>
+  <footer class="site-foot">Built by Gopikrishna | <a href="mailto:gkrishna.ai.lab@gmail.com">gkrishna.ai.lab@gmail.com</a></footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+/* =========================================================
+   DATA — every command: same task in CMD, PowerShell, Bash
+   ========================================================= */
+const CATS=[
+ {id:'nav',  name:'Navigate',               sub:'Where am I, what is here'},
+ {id:'files',name:'Files & folders',        sub:'Create, copy, move, delete'},
+ {id:'view', name:'Read files',             sub:'Print, page, compare'},
+ {id:'text', name:'Search & transform',     sub:'grep, sort, sed and friends'},
+ {id:'flow', name:'Pipes & redirection',    sub:'Connect commands together'},
+ {id:'proc', name:'Processes',              sub:'What is running, stop it'},
+ {id:'net',  name:'Network',                sub:'IP, ports, DNS, APIs, SSH'},
+ {id:'perm', name:'Permissions & users',    sub:'chmod, owners, admin'},
+ {id:'sys',  name:'System & environment',   sub:'Variables, PATH, disk'},
+ {id:'pkg',  name:'Archives & packages',    sub:'tar, zip, install software'}
+];
+const GUIDES=[
+ {id:'start',     name:'Start here',               sub:'Terminal vs shell, how to use'},
+ {id:'syntax',    name:'Syntax differences',       sub:'Paths, quotes, variables'},
+ {id:'cheat',     name:'Cheat sheet',              sub:'Every command in one table'},
+ {id:'interview', name:'Interview prep',           sub:'All questions, track progress'}
+];
+const BASE=['notes.txt','app.log','data.csv','names.txt','deploy.sh','src/','src/main.py','src/utils.py','backup/','backup/old.txt'];
+const LOG=[`09:00:01 INFO  Server started on :8080`,`09:00:07 INFO  User gk logged in`,`09:01:12 ERROR Database timeout`,`09:01:15 WARN  Retrying connection`,`09:01:20 INFO  Connected`,`09:02:44 ERROR Payment failed: card declined`,`09:03:05 INFO  Order 1042 created`];
+const NOTES=[`Buy milk`,`Fix login bug`,`Call Ravi`];
+const NAMES=[`Ravi`,`Meera`,`Anita`,`Kiran`,`Ravi`,`Anita`];
+const CSV=[`id,name,city`,`1,Ravi,Hyderabad`,`2,Meera,Pune`,`3,Kiran,Chennai`];
+const PSH=(dir)=>[``,`    Directory: C:\\Users\\gk\\${dir}`,``,`Mode                 LastWriteTime         Length Name`,`----                 -------------         ------ ----`];
+const ICACLS=[`processed file: deploy.sh`,`Successfully processed 1 files; Failed processing 0 files`];
+const NO_CMD=`No built-in CMD command. Run the PowerShell version, or use Git Bash.`;
+
+const FN=[];
+function C(o){ FN.push(o); }
+
+/* ---------------- Navigate ---------------- */
+C({id:'pwd',cat:'nav',lvl:'B',name:'pwd',t:`Show current folder`,
+ c:{cmd:`cd`,ps:`Get-Location`,sh:`pwd`},al:`pwd, gl`,
+ out:{cmd:[`C:\\Users\\gk\\project`],ps:[``,`Path`,`----`,`C:\\Users\\gk\\project`,``],sh:[`/home/gk/project`]},
+ viz:{here:''},
+ an:[[`pwd`,`print working directory: the full path of the folder you are in`]],
+ fl:[[`Print path into a variable`,`for /f %p in ('cd') do set HERE=%p`,`$here = Get-Location`,`here=$(pwd)`],[`Show real path behind links`,`—`,`(Get-Item .).Target`,`pwd -P`]],
+ no:[[`tip`,`In CMD, <code>cd</code> with nothing after it prints the folder. In bash, <code>cd</code> alone takes you home.`],[`tip`,`Most prompts already show the folder: <code>~</code> in bash means your home folder.`]],
+ qa:[[`What is the "working directory"?`,`The folder the shell is currently in. Relative paths and commands like ls, cp, rm all act relative to it.`]]});
+
+C({id:'ls',cat:'nav',lvl:'B',name:'ls',t:`List files and folders`,
+ c:{cmd:`dir`,ps:`Get-ChildItem`,sh:`ls -l`},al:`ls, dir, gci`,
+ out:{cmd:[` Directory of C:\\Users\\gk\\project`,``,`01-10-2026  09:12    <DIR>          backup`,`01-10-2026  09:12    <DIR>          src`,`01-10-2026  09:03               243 app.log`,`30-09-2026  18:40                59 data.csv`,`30-09-2026  17:22               120 deploy.sh`,`29-09-2026  11:05                34 names.txt`,`29-09-2026  10:15                33 notes.txt`,`               5 File(s)            489 bytes`,`               2 Dir(s)  48,203,513,856 bytes free`],
+  ps:[...PSH('project'),`d----          01-10-2026    09:12                backup`,`d----          01-10-2026    09:12                src`,`-a---          01-10-2026    09:03            243 app.log`,`-a---          30-09-2026    18:40             59 data.csv`,`-a---          30-09-2026    17:22            120 deploy.sh`,`-a---          29-09-2026    11:05             34 names.txt`,`-a---          29-09-2026    10:15             33 notes.txt`],
+  sh:[`total 28`,`-rw-r--r-- 1 gk gk  243 Oct  1 09:03 app.log`,`drwxr-xr-x 2 gk gk 4096 Oct  1 09:12 backup`,`-rw-r--r-- 1 gk gk   59 Sep 30 18:40 data.csv`,`-rwxr-xr-x 1 gk gk  120 Sep 30 17:22 deploy.sh`,`-rw-r--r-- 1 gk gk   34 Sep 29 11:05 names.txt`,`-rw-r--r-- 1 gk gk   33 Sep 29 10:15 notes.txt`,`drwxr-xr-x 2 gk gk 4096 Oct  1 09:12 src`]},
+ viz:{show:['notes.txt','app.log','data.csv','names.txt','deploy.sh','src/','backup/'],tag:'listed'},
+ an:[[`ls`,`list folder contents`],[`-l`,`long format: permissions, owner, size, date`]],
+ fl:[[`Include hidden files`,`dir /a`,`Get-ChildItem -Force`,`ls -a`],[`Include subfolders`,`dir /s`,`Get-ChildItem -Recurse`,`ls -R`],[`Newest first`,`dir /o-d`,`Get-ChildItem | Sort-Object LastWriteTime -Descending`,`ls -lt`],[`Only folders`,`dir /ad`,`Get-ChildItem -Directory`,`ls -d */`],[`Human-readable sizes`,`—`,`—`,`ls -lh`]],
+ no:[[`warn`,`In PowerShell, <code>ls</code> and <code>dir</code> work because they are aliases of Get-ChildItem. But <code>ls -la</code> fails: Linux flags are not PowerShell parameters.`],[`tip`,`Files that start with a dot (<code>.env</code>, <code>.git</code>) are hidden on Linux and macOS. Use <code>ls -a</code> to see them.`]],
+ qa:[[`What do the columns in ls -l mean?`,`Permissions, link count, owner, group, size in bytes, last-modified date, name. The first character is the type: d for a directory, - for a file, l for a link.`],[`How do you list hidden files in PowerShell?`,`Get-ChildItem -Force. Hidden and system items are skipped unless you add -Force.`]]});
+
+C({id:'cd',cat:'nav',lvl:'B',name:'cd',t:`Change folder`,
+ c:{cmd:`cd src`,ps:`Set-Location src`,sh:`cd src`},al:`cd, sl, chdir`,after:'project/src',
+ out:{cmd:[],ps:[],sh:[]},
+ viz:{here:'src/',from:''},
+ an:[[`cd`,`change directory`],[`src`,`a relative path: a folder inside the current one`]],
+ fl:[[`Up one level`,`cd ..`,`Set-Location ..`,`cd ..`],[`Home folder`,`cd %USERPROFILE%`,`Set-Location ~`,`cd ~  (or just cd)`],[`Back to previous folder`,`—  (use pushd / popd)`,`Set-Location -  (PowerShell 7)`,`cd -`],[`Switch drive as well`,`cd /d D:\\work`,`Set-Location D:\\work`,`cd /mnt/d/work  (WSL)`],[`Folder name with spaces`,`cd "My Files"`,`Set-Location "My Files"`,`cd "My Files"`]],
+ no:[[`warn`,`In CMD, <code>cd D:\\work</code> typed on the C: drive does not take you to D:. Add <code>/d</code>, or type <code>D:</code> first.`],[`tip`,`Press Tab to complete folder names in all three shells. It saves typing and avoids typos.`]],
+ qa:[[`What is the difference between an absolute and a relative path?`,`An absolute path starts from the root (C:\\ or /) and works from anywhere. A relative path starts from the current folder, like src or ../backup.`],[`What do . and .. mean?`,`. is the current folder and .. is its parent. They work in all three shells.`]]});
+
+C({id:'tree',cat:'nav',lvl:'B',name:'tree',t:`Show the folder tree`,
+ c:{cmd:`tree /f`,ps:`tree /f`,sh:`tree`},
+ out:{cmd:[`Folder PATH listing`,`C:.`,`│   app.log`,`│   data.csv`,`│   deploy.sh`,`│   names.txt`,`│   notes.txt`,`│`,`├───backup`,`│       old.txt`,`│`,`└───src`,`        main.py`,`        utils.py`],
+  ps:[`Folder PATH listing`,`C:.`,`│   app.log`,`│   data.csv`,`│   deploy.sh`,`│   names.txt`,`│   notes.txt`,`│`,`├───backup`,`│       old.txt`,`│`,`└───src`,`        main.py`,`        utils.py`],
+  sh:[`.`,`├── app.log`,`├── backup`,`│   └── old.txt`,`├── data.csv`,`├── deploy.sh`,`├── names.txt`,`├── notes.txt`,`└── src`,`    ├── main.py`,`    └── utils.py`,``,`2 directories, 8 files`]},
+ viz:{show:BASE,tag:'listed'},
+ an:[[`tree`,`draw folders and files as a tree`]],
+ fl:[[`Show files, not only folders`,`tree /f`,`tree /f`,`tree  (files shown by default)`],[`Limit the depth`,`—`,`—`,`tree -L 2`],[`Plain ASCII lines`,`tree /a`,`tree /a`,`tree --charset ascii`]],
+ no:[[`tip`,`PowerShell has no tree cmdlet. Typing <code>tree</code> there runs the same tree.com program that CMD uses.`],[`warn`,`<code>tree</code> is often missing on Linux and macOS. Install it with <code>sudo apt install tree</code> or <code>brew install tree</code>.`]],
+ qa:[[`How would you show a project's folder structure in a README?`,`Run tree (tree -L 2 on Linux to limit depth, or tree /f /a on Windows for plain ASCII) and paste the result into a code block.`]]});
+
+C({id:'clear',cat:'nav',lvl:'B',name:'clear',t:`Clear the screen`,
+ c:{cmd:`cls`,ps:`Clear-Host`,sh:`clear`},al:`cls, clear`,
+ out:{cmd:[],ps:[],sh:[]},
+ an:[[`clear`,`wipe the visible screen`]],
+ fl:[[`Keyboard shortcut`,`—`,`Ctrl + L`,`Ctrl + L`]],
+ no:[[`tip`,`Clearing the screen keeps your history. Earlier commands are still one ↑ key away.`]],
+ qa:[[`Does clear delete your command history?`,`No. It only clears the screen. History is stored separately (history in bash, Get-History in PowerShell).`]]});
+
+C({id:'history',cat:'nav',lvl:'B',name:'history',t:`See past commands`,
+ c:{cmd:`doskey /history`,ps:`Get-History`,sh:`history`},al:`h, history, ghy`,
+ out:{cmd:[`cd src`,`cd ..`,`dir`,`doskey /history`],ps:[``,`  Id CommandLine`,`  -- -----------`,`   1 Set-Location src`,`   2 Set-Location ..`,`   3 Get-ChildItem`,``],sh:[`  501  cd src`,`  502  cd ..`,`  503  ls -l`,`  504  history`]},
+ an:[[`history`,`list the commands you ran earlier, numbered`]],
+ fl:[[`Search history as you type`,`F7 (pick from a list)`,`Ctrl + R`,`Ctrl + R`],[`Run the last command again`,`F3`,`Invoke-History  (alias r)`,`!!`],[`Run command number N`,`—`,`Invoke-History N`,`!N`]],
+ no:[[`tip`,`<code>sudo !!</code> re-runs your last command with admin rights: the classic fix for "Permission denied".`],[`warn`,`Get-History only covers this session. Older PowerShell commands live in a file: <code>(Get-PSReadLineOption).HistorySavePath</code>.`]],
+ qa:[[`What does !! do in bash?`,`It expands to the previous command, so sudo !! repeats the last command with sudo.`],[`How do you find a command you ran yesterday?`,`Press Ctrl+R in bash or PowerShell and type part of it, or search the list with history | grep word.`]]});
+
+/* ---------------- Files & folders ---------------- */
+C({id:'touch',cat:'files',lvl:'B',name:'touch',t:`Create an empty file`,
+ c:{cmd:`type nul > todo.txt`,ps:`New-Item todo.txt`,sh:`touch todo.txt`},al:`ni`,
+ out:{cmd:[],ps:[...PSH('project'),`-a---          01-10-2026    10:22              0 todo.txt`,``],sh:[]},
+ viz:{add:['todo.txt']},
+ an:[[`touch`,`create the file if it is missing, or update its timestamp`],[`todo.txt`,`name of the file`]],
+ fl:[[`Several files at once`,`type nul > a.txt & type nul > b.txt`,`New-Item a.txt, b.txt`,`touch a.txt b.txt`],[`Create with some text`,`echo hello > a.txt`,`Set-Content a.txt "hello"`,`echo hello > a.txt`]],
+ no:[[`danger`,`<code>type nul &gt; file</code> empties the file if it already exists. Use <code>&gt;&gt;</code> instead of <code>&gt;</code> to be safe.`],[`warn`,`<code>New-Item</code> fails if the file exists, and <code>New-Item -Force</code> replaces it with an empty one. <code>touch</code> never erases content.`]],
+ qa:[[`What does touch do to a file that already exists?`,`It updates the file's modified time and leaves the content alone. Build tools use this to mark files as changed.`]]});
+
+C({id:'mkdir',cat:'files',lvl:'B',name:'mkdir',t:`Create a folder`,
+ c:{cmd:`mkdir reports\\2026`,ps:`New-Item -ItemType Directory reports\\2026`,sh:`mkdir -p reports/2026`},al:`mkdir, md`,
+ out:{cmd:[],ps:[...PSH('project\\reports'),`d----          01-10-2026    10:22                2026`,``],sh:[]},
+ viz:{add:['reports/','reports/2026/']},
+ an:[[`mkdir`,`make directory`],[`-p`,`also create missing parent folders, and stay quiet if it already exists`],[`reports/2026`,`a nested path: reports, then 2026 inside it`]],
+ fl:[[`Create parent folders too`,`(automatic)`,`(automatic)`,`mkdir -p a/b/c`],[`Several folders at once`,`mkdir a b c`,`mkdir a, b, c`,`mkdir a b c`],[`No error if it exists`,`—`,`New-Item ... -Force`,`mkdir -p`]],
+ no:[[`tip`,`CMD and PowerShell create missing parent folders on their own. Bash needs <code>-p</code>, otherwise it says "No such file or directory".`],[`tip`,`PowerShell has a built-in <code>mkdir</code> shortcut, so <code>mkdir reports</code> works there too.`]],
+ qa:[[`How do you create a/b/c in one command on Linux?`,`mkdir -p a/b/c. Without -p, mkdir fails because a and a/b don't exist yet.`]]});
+
+C({id:'cp',cat:'files',lvl:'B',name:'cp',t:`Copy a file`,
+ c:{cmd:`copy notes.txt backup\\`,ps:`Copy-Item notes.txt backup\\`,sh:`cp notes.txt backup/`},al:`cp, copy, cpi`,
+ out:{cmd:[`        1 file(s) copied.`],ps:[],sh:[]},
+ viz:{add:['backup/notes.txt']},
+ an:[[`cp`,`copy`],[`notes.txt`,`source: what to copy`],[`backup/`,`destination: where the copy goes`]],
+ fl:[[`Copy a whole folder`,`robocopy src dest /e`,`Copy-Item src dest -Recurse`,`cp -r src dest`],[`Ask before overwriting`,`copy /-y`,`Copy-Item ... -Confirm`,`cp -i`],[`Keep timestamps & permissions`,`robocopy src dest /e /copyall`,`—`,`cp -a`],[`Print each file copied`,`—`,`Copy-Item ... -Verbose`,`cp -v`]],
+ no:[[`warn`,`<code>cp</code> and <code>Copy-Item</code> overwrite the destination without asking. Add <code>-i</code> in bash or <code>-Confirm</code> in PowerShell when it matters.`],[`tip`,`For big folder copies on Windows, <code>robocopy</code> is faster than copy/xcopy and can resume after a failure.`]],
+ qa:[[`How do you copy a directory recursively?`,`cp -r src dest on Linux/macOS, Copy-Item src dest -Recurse in PowerShell, robocopy src dest /e in CMD.`],[`What is the difference between cp -r and cp -a?`,`-a (archive) is -r plus keeping permissions, timestamps, ownership and symlinks. Use it for backups.`]]});
+
+C({id:'mv',cat:'files',lvl:'B',name:'mv',t:`Move or rename`,
+ c:{cmd:`move app.log backup\\`,ps:`Move-Item app.log backup\\`,sh:`mv app.log backup/`},al:`mv, move, mi`,
+ out:{cmd:[`        1 file(s) moved.`],ps:[],sh:[]},
+ viz:{add:['backup/app.log'],rm:['app.log']},
+ an:[[`mv`,`move; also used to rename`],[`app.log`,`what to move`],[`backup/`,`where it goes. A new name here instead of a folder would rename the file.`]],
+ fl:[[`Rename a file`,`ren app.log old.log`,`Rename-Item app.log old.log`,`mv app.log old.log`],[`Ask before overwriting`,`move /-y`,`Move-Item ... -Confirm`,`mv -i`],[`Never overwrite`,`—`,`—`,`mv -n`]],
+ no:[[`tip`,`Bash has no separate rename command for one file: renaming is moving to a new name in the same folder.`],[`warn`,`<code>ren</code> in CMD only renames. It cannot move a file into another folder.`]],
+ qa:[[`How do you rename a file in Linux?`,`mv old.txt new.txt. Moving within the same folder under a new name is a rename.`],[`Why is mv instant even for a huge file?`,`On the same disk, mv only updates the directory entry; the data isn't copied. Across disks it copies, then deletes.`]]});
+
+C({id:'rm',cat:'files',lvl:'B',name:'rm',t:`Delete a file`,d:1,
+ c:{cmd:`del notes.txt`,ps:`Remove-Item notes.txt`,sh:`rm notes.txt`},al:`rm, del, ri`,
+ out:{cmd:[],ps:[],sh:[]},
+ viz:{rm:['notes.txt']},
+ an:[[`rm`,`remove`],[`notes.txt`,`the file to delete`]],
+ fl:[[`Ask before each delete`,`del /p`,`Remove-Item ... -Confirm`,`rm -i`],[`Delete by pattern`,`del *.tmp`,`Remove-Item *.tmp`,`rm *.tmp`],[`Preview, delete nothing`,`dir *.tmp`,`Remove-Item *.tmp -WhatIf`,`ls *.tmp`],[`Include read-only files`,`del /f`,`Remove-Item ... -Force`,`rm -f`]],
+ no:[[`danger`,`Files deleted from a shell skip the Recycle Bin and Trash. There is no undo.`],[`tip`,`PowerShell's <code>-WhatIf</code> prints what would be deleted without touching anything. Use it before any wildcard delete.`]],
+ qa:[[`Can you recover a file deleted with rm?`,`Not with a normal command, because it never went to the Trash. Recovery needs backups, version control or forensic tools.`],[`What does rm -f do?`,`Never prompts, deletes write-protected files, and doesn't complain if the file is missing.`]]});
+
+C({id:'rmdir',cat:'files',lvl:'I',name:'rm -r',t:`Delete a folder`,d:1,
+ c:{cmd:`rmdir /s /q backup`,ps:`Remove-Item backup -Recurse -Force`,sh:`rm -rf backup`},al:`rm, rd, rmdir`,
+ out:{cmd:[],ps:[],sh:[]},
+ viz:{rm:['backup/','backup/old.txt']},
+ an:[[`rm`,`remove`],[`-r`,`recursive: the folder and everything inside it`],[`-f`,`force: no prompts, no error for missing files`],[`backup`,`the folder to delete`]],
+ fl:[[`Only if the folder is empty`,`rmdir backup`,`Remove-Item backup`,`rmdir backup`],[`With everything inside`,`rmdir /s backup`,`Remove-Item backup -Recurse`,`rm -r backup`],[`No confirmation at all`,`rmdir /s /q backup`,`Remove-Item backup -Recurse -Force`,`rm -rf backup`]],
+ no:[[`danger`,`<code>rm -rf</code> with a wrong path, such as a stray space in <code>rm -rf / tmp</code>, can wipe the system. Run <code>ls</code> on the exact path first.`],[`tip`,`Plain <code>rmdir</code> only removes empty folders in every shell, which makes it a safe default.`]],
+ qa:[[`What is the difference between rmdir and rm -r?`,`rmdir only removes an empty directory. rm -r removes a directory with everything in it.`],[`Why is rm -rf considered dangerous?`,`It deletes recursively, without asking and without the Trash, so a typo in the path is never caught.`]]});
+
+C({id:'ln',cat:'files',lvl:'I',name:'ln -s',t:`Create a link (shortcut)`,
+ c:{cmd:`mklink /d latest backup`,ps:`New-Item -ItemType SymbolicLink latest -Target backup`,sh:`ln -s backup latest`},
+ out:{cmd:[`symbolic link created for latest <<===>> backup`],ps:[...PSH('project'),`l----          01-10-2026    10:22                latest -> backup`,``],sh:[]},
+ viz:{add:['latest -> backup']},
+ an:[[`ln`,`link`],[`-s`,`symbolic (soft) link: a pointer to a path`],[`backup`,`target: what the link points to`],[`latest`,`name of the new link`]],
+ fl:[[`Soft link to a file`,`mklink link.txt notes.txt`,`New-Item -ItemType SymbolicLink link.txt -Target notes.txt`,`ln -s notes.txt link.txt`],[`Soft link to a folder`,`mklink /d latest backup`,`New-Item -ItemType SymbolicLink latest -Target backup`,`ln -s backup latest`],[`Hard link`,`mklink /h link.txt notes.txt`,`New-Item -ItemType HardLink link.txt -Target notes.txt`,`ln notes.txt link.txt`]],
+ no:[[`warn`,`The argument order is reversed: <code>ln -s TARGET LINK</code>, but <code>mklink LINK TARGET</code>.`],[`warn`,`On Windows, creating symbolic links needs an admin shell or Developer Mode.`]],
+ qa:[[`What is the difference between a hard link and a soft link?`,`A soft link stores a path and breaks if the target is moved or deleted. A hard link is another name for the same data, which stays until every name is deleted. Hard links can't cross drives or point to folders.`]]});
+
+C({id:'find',cat:'files',lvl:'I',name:'find',t:`Find files by name`,
+ c:{cmd:`dir /s /b *.py`,ps:`Get-ChildItem -Recurse -Filter *.py`,sh:`find . -name "*.py"`},
+ out:{cmd:[`C:\\Users\\gk\\project\\src\\main.py`,`C:\\Users\\gk\\project\\src\\utils.py`],ps:[...PSH('project\\src'),`-a---          28-09-2026    16:40            512 main.py`,`-a---          28-09-2026    16:41            204 utils.py`,``],sh:[`./src/main.py`,`./src/utils.py`]},
+ viz:{show:['src/main.py','src/utils.py'],tag:'match'},
+ an:[[`find`,`walk through folders and test each file`],[`.`,`start in the current folder`],[`-name "*.py"`,`keep names matching *.py (quoted so the shell doesn't expand it first)`]],
+ fl:[[`Ignore case in the name`,`(always)`,`(always)`,`find . -iname "*.py"`],[`Only folders`,`dir /s /b /ad`,`Get-ChildItem -Recurse -Directory`,`find . -type d`],[`Changed in the last day`,`forfiles /s /d +0`,`Get-ChildItem -Recurse | Where-Object LastWriteTime -gt (Get-Date).AddDays(-1)`,`find . -mtime -1`],[`Bigger than 100 MB`,`—`,`Get-ChildItem -Recurse | Where-Object Length -gt 100MB`,`find . -size +100M`]],
+ no:[[`tip`,`Quote the pattern in bash: <code>"*.py"</code>. Unquoted, the shell may expand it before find sees it.`],[`tip`,`To search for text inside files, use grep, Select-String or findstr instead.`]],
+ qa:[[`What is the difference between find and grep?`,`find looks for files by name, size, date or type. grep looks for text inside files.`],[`How do you find files modified in the last 24 hours?`,`find . -mtime -1 on Linux. In PowerShell: Get-ChildItem -Recurse | Where-Object LastWriteTime -gt (Get-Date).AddDays(-1).`]]});
+
+/* ---------------- Read files ---------------- */
+C({id:'cat',cat:'view',lvl:'B',name:'cat',t:`Print a file`,
+ c:{cmd:`type notes.txt`,ps:`Get-Content notes.txt`,sh:`cat notes.txt`},al:`cat, type, gc`,
+ out:{cmd:NOTES,ps:NOTES,sh:NOTES},
+ viz:{st:[{l:'notes.txt',v:NOTES},{l:'screen',v:NOTES}]},
+ an:[[`cat`,`concatenate: print one or more files, one after another`],[`notes.txt`,`the file to print`]],
+ fl:[[`Join several files`,`type a.txt b.txt`,`Get-Content a.txt, b.txt`,`cat a.txt b.txt`],[`Number the lines`,`findstr /n "^" notes.txt`,`Get-Content notes.txt | ForEach-Object { "$($_.ReadCount) $_" }`,`cat -n notes.txt`],[`Merge into a new file`,`type a.txt b.txt > all.txt`,`Get-Content a.txt, b.txt | Set-Content all.txt`,`cat a.txt b.txt > all.txt`]],
+ no:[[`tip`,`cat is short for con<b>cat</b>enate: joining files is its real job.`],[`warn`,`Don't cat a huge log; it floods the screen. Use less, head or tail.`]],
+ qa:[[`Why is it called cat?`,`Short for concatenate. It prints files one after another, so cat a b > c joins them into c.`]]});
+
+C({id:'less',cat:'view',lvl:'B',name:'less',t:`Read a long file page by page`,
+ c:{cmd:`more app.log`,ps:`Get-Content app.log | more`,sh:`less app.log`},
+ out:{cmd:[...LOG.slice(0,4),`-- More (61%) --`],ps:[...LOG.slice(0,4),`-- More --`],sh:[...LOG,`app.log (END)`]},
+ an:[[`less`,`page through a file one screen at a time`],[`app.log`,`the file to open`]],
+ fl:[[`Next page`,`Space`,`Space`,`Space`],[`Search forward`,`—`,`—`,`/word, then n`],[`Jump to the end`,`—`,`—`,`G`],[`Quit`,`Q`,`Q`,`q`],[`Follow new lines live`,`—`,`Get-Content app.log -Wait`,`less +F app.log`]],
+ no:[[`tip`,`"less is more": less is a newer more that can also scroll backwards and search.`],[`tip`,`<code>man</code> pages open in less, so the same keys (/, n, q) work there.`]],
+ qa:[[`How do you search inside less?`,`Type / followed by the word and press Enter. n jumps to the next match, N to the previous one.`]]});
+
+C({id:'head',cat:'view',lvl:'B',name:'head',t:`First lines of a file`,
+ c:{cmd:null,ps:`Get-Content app.log -TotalCount 3`,sh:`head -n 3 app.log`},x:NO_CMD,
+ out:{ps:LOG.slice(0,3),sh:LOG.slice(0,3)},
+ viz:{st:[{l:'app.log',v:LOG,hl:[0,1,2],dim:1},{l:'head -n 3',v:LOG.slice(0,3)}]},
+ an:[[`head`,`print the start of a file`],[`-n 3`,`how many lines (10 if you leave it out)`],[`app.log`,`the file`]],
+ fl:[[`First N lines`,`—`,`Get-Content f -TotalCount N`,`head -n N f`],[`First N from a pipe`,`—`,`... | Select-Object -First N`,`... | head -n N`],[`First N bytes`,`—`,`—`,`head -c N f`]],
+ no:[[`tip`,`<code>-Head</code> and <code>-First</code> are aliases of <code>-TotalCount</code> in Get-Content.`]],
+ qa:[[`How do you peek at the first 20 lines of a big CSV?`,`head -n 20 file.csv in bash, Get-Content file.csv -TotalCount 20 in PowerShell. Both stop reading early, so they're fast on huge files.`]]});
+
+C({id:'tail',cat:'view',lvl:'B',name:'tail',t:`Last lines, or watch a log`,
+ c:{cmd:null,ps:`Get-Content app.log -Tail 3`,sh:`tail -n 3 app.log`},x:NO_CMD,
+ out:{ps:LOG.slice(4),sh:LOG.slice(4)},
+ viz:{st:[{l:'app.log',v:LOG,hl:[4,5,6],dim:1},{l:'tail -n 3',v:LOG.slice(4)}]},
+ an:[[`tail`,`print the end of a file`],[`-n 3`,`how many lines`],[`app.log`,`the file`]],
+ fl:[[`Last N lines`,`—`,`Get-Content f -Tail N`,`tail -n N f`],[`Watch a log live`,`—`,`Get-Content f -Wait -Tail 10`,`tail -f f`],[`Keep following after log rotation`,`—`,`—`,`tail -F f`],[`From line N to the end`,`more +N f`,`Get-Content f | Select-Object -Skip N`,`tail -n +N f`]],
+ no:[[`tip`,`<code>tail -f</code> is how you watch a server log while you reproduce a bug. Stop it with Ctrl+C.`]],
+ qa:[[`How do you monitor a log file in real time?`,`tail -f app.log on Linux/macOS, Get-Content app.log -Wait -Tail 10 in PowerShell. To watch only errors: tail -f app.log | grep ERROR.`]]});
+
+C({id:'wc',cat:'view',lvl:'B',name:'wc',t:`Count lines and words`,
+ c:{cmd:`find /c /v "" app.log`,ps:`Get-Content app.log | Measure-Object -Line -Word`,sh:`wc -l app.log`},
+ out:{cmd:[``,`---------- APP.LOG: 7`],ps:[``,`Lines Words Characters Property`,`----- ----- ---------- --------`,`    7    34`,``],sh:[`7 app.log`]},
+ viz:{st:[{l:'app.log',v:LOG},{l:'wc -l',v:['7']}]},
+ an:[[`wc`,`word count`],[`-l`,`count lines only`],[`app.log`,`the file`]],
+ fl:[[`Lines`,`find /c /v "" f`,`(Get-Content f).Count`,`wc -l f`],[`Words`,`—`,`Get-Content f | Measure-Object -Word`,`wc -w f`],[`Characters`,`—`,`Get-Content f -Raw | Measure-Object -Character`,`wc -m f`],[`Count matching lines`,`find /c "ERROR" f`,`(Select-String ERROR f).Count`,`grep -c ERROR f`]],
+ no:[[`tip`,`The CMD trick counts lines that do <b>not</b> contain an empty string, which is every line.`],[`tip`,`<code>wc -l</code> counts newline characters, so a last line without one isn't counted.`]],
+ qa:[[`How do you count the errors in a log?`,`grep -c ERROR app.log, or grep ERROR app.log | wc -l. In PowerShell: (Select-String ERROR app.log).Count.`]]});
+
+C({id:'diff',cat:'view',lvl:'I',name:'diff',t:`Compare two files`,
+ c:{cmd:`fc old.txt new.txt`,ps:`Compare-Object (Get-Content old.txt) (Get-Content new.txt)`,sh:`diff old.txt new.txt`},
+ out:{cmd:[`Comparing files old.txt and NEW.TXT`,`***** old.txt`,`Fix login bug`,`Call Ravi`,`***** NEW.TXT`,`Fix signup bug`,`Call Ravi`,`*****`,``,`***** old.txt`,`***** NEW.TXT`,`Book tickets`,`*****`],
+  ps:[``,`InputObject    SideIndicator`,`-----------    -------------`,`Fix signup bug =>`,`Book tickets   =>`,`Fix login bug  <=`,``],
+  sh:[`2c2`,`< Fix login bug`,`---`,`> Fix signup bug`,`3a4`,`> Book tickets`]},
+ viz:{st:[{l:'old.txt',v:NOTES,hl:[1]},{l:'new.txt',v:[`Buy milk`,`Fix signup bug`,`Call Ravi`,`Book tickets`],hl:[1,3]}],cmp:1},
+ an:[[`diff`,`show what changed between two files`],[`old.txt`,`the "before" file; its lines are marked <`],[`new.txt`,`the "after" file; its lines are marked >`]],
+ fl:[[`Ignore case`,`fc /c`,`(ignores case by default)`,`diff -i`],[`Ignore whitespace`,`fc /w`,`—`,`diff -w`],[`Unified format, like git`,`—`,`—`,`diff -u`],[`Compare two folders`,`—`,`—`,`diff -r dir1 dir2`]],
+ no:[[`tip`,`<code>diff -u</code> prints the same format git uses, so learning it pays off in code reviews.`],[`tip`,`Read <code>2c2</code> as: line 2 of the first file <b>c</b>hanged into line 2 of the second. <b>a</b> means added, <b>d</b> means deleted.`]],
+ qa:[[`How do you read diff output like 3a4?`,`After line 3 of the first file, add line 4 of the second. c means changed and d means deleted.`]]});
+/* ---------------- Search & transform ---------------- */
+C({id:'grep',cat:'text',lvl:'B',name:'grep',t:`Search text in files`,
+ c:{cmd:`findstr "ERROR" app.log`,ps:`Select-String "ERROR" app.log`,sh:`grep ERROR app.log`},al:`sls`,
+ out:{cmd:[LOG[2],LOG[5]],ps:[``,`app.log:3:${LOG[2]}`,`app.log:6:${LOG[5]}`,``],sh:[LOG[2],LOG[5]]},
+ viz:{st:[{l:'app.log',v:LOG,hl:[2,5],dim:1},{l:'grep ERROR',v:[LOG[2],LOG[5]]}]},
+ an:[[`grep`,`global regular expression print: print the lines that match`],[`ERROR`,`the pattern to look for`],[`app.log`,`the file to search`]],
+ fl:[[`Ignore case`,`findstr /i`,`(ignores case by default)`,`grep -i`],[`Lines that do NOT match`,`findstr /v`,`Select-String ... -NotMatch`,`grep -v`],[`Show line numbers`,`findstr /n`,`(shown by default)`,`grep -n`],[`Search every file in subfolders`,`findstr /s "ERROR" *.log`,`Get-ChildItem -Recurse *.log | Select-String ERROR`,`grep -r ERROR .`],[`Count matching lines`,`find /c "ERROR" app.log`,`(Select-String ERROR app.log).Count`,`grep -c ERROR app.log`],[`Lines around each match`,`—`,`Select-String ... -Context 2`,`grep -C 2`]],
+ no:[[`warn`,`Select-String ignores case by default; grep and findstr don't. Add <code>-CaseSensitive</code> in PowerShell when case matters.`],[`warn`,`<code>findstr "A B"</code> means A <b>or</b> B. For the exact phrase, use <code>findstr /c:"A B"</code>.`]],
+ qa:[[`How do you find every file that contains a word in a project?`,`grep -rn "word" . (add -l to print only file names). PowerShell: Get-ChildItem -Recurse | Select-String "word".`],[`What does grep -v do?`,`Inverts the match: it prints only the lines that do not contain the pattern.`]]});
+
+C({id:'sort',cat:'text',lvl:'B',name:'sort',t:`Sort lines`,
+ c:{cmd:`sort names.txt`,ps:`Get-Content names.txt | Sort-Object`,sh:`sort names.txt`},
+ out:{cmd:[...NAMES].sort(),ps:[...NAMES].sort(),sh:[...NAMES].sort()},
+ viz:{st:[{l:'names.txt',v:NAMES},{l:'sort',v:[...NAMES].sort()}]},
+ an:[[`sort`,`put lines in alphabetical order`],[`names.txt`,`the file`]],
+ fl:[[`Reverse order`,`sort /r`,`Sort-Object -Descending`,`sort -r`],[`Numbers by value`,`—`,`Sort-Object { [int]$_ }`,`sort -n`],[`Remove duplicates`,`—`,`Sort-Object -Unique`,`sort -u`],[`By the 2nd column of a CSV`,`—`,`Import-Csv f | Sort-Object name`,`sort -t, -k2 f`]],
+ no:[[`warn`,`Without <code>-n</code>, numbers sort as text: 10 comes before 9.`]],
+ qa:[[`How do you sort a file numerically, largest first?`,`sort -nr file. In PowerShell: Get-Content file | Sort-Object { [int]$_ } -Descending.`]]});
+
+C({id:'uniq',cat:'text',lvl:'I',name:'uniq',t:`Remove or count duplicates`,
+ c:{cmd:null,ps:`Get-Content names.txt | Sort-Object | Get-Unique`,sh:`sort names.txt | uniq`},x:NO_CMD,
+ out:{ps:[`Anita`,`Kiran`,`Meera`,`Ravi`],sh:[`Anita`,`Kiran`,`Meera`,`Ravi`]},
+ viz:{st:[{l:'names.txt',v:NAMES},{l:'sort',v:[...NAMES].sort(),hl:[1,5]},{l:'uniq',v:[`Anita`,`Kiran`,`Meera`,`Ravi`]}]},
+ an:[[`sort names.txt`,`put equal lines next to each other`],[`|`,`pass the result on`],[`uniq`,`drop a line if it equals the one just before it`]],
+ fl:[[`Count each value`,`—`,`Get-Content f | Group-Object | Select-Object Count, Name`,`sort f | uniq -c`],[`Only the duplicated values`,`—`,`Get-Content f | Group-Object | Where-Object Count -gt 1`,`sort f | uniq -d`],[`Top 3 most frequent`,`—`,`Get-Content f | Group-Object | Sort-Object Count -Descending | Select-Object -First 3`,`sort f | uniq -c | sort -rn | head -3`]],
+ no:[[`warn`,`uniq only removes <b>neighbouring</b> duplicates. That is why it almost always comes after sort.`]],
+ qa:[[`Why is sort run before uniq?`,`uniq compares each line only with the line before it, so equal lines must be next to each other.`],[`How do you find the most frequent IP addresses in an access log?`,`cut -d" " -f1 access.log | sort | uniq -c | sort -rn | head. A classic interview one-liner.`]]});
+
+C({id:'cut',cat:'text',lvl:'I',name:'cut',t:`Pick a column`,
+ c:{cmd:`for /f "tokens=2 delims=," %a in (data.csv) do @echo %a`,ps:`Import-Csv data.csv | Select-Object -ExpandProperty name`,sh:`cut -d, -f2 data.csv`},
+ out:{cmd:[`name`,`Ravi`,`Meera`,`Kiran`],ps:[`Ravi`,`Meera`,`Kiran`],sh:[`name`,`Ravi`,`Meera`,`Kiran`]},
+ viz:{st:[{l:'data.csv',v:CSV},{l:'cut -d, -f2',v:[`name`,`Ravi`,`Meera`,`Kiran`]}]},
+ an:[[`cut`,`cut out part of each line`],[`-d,`,`delimiter: split each line at commas`],[`-f2`,`keep field 2 (counting from 1)`],[`data.csv`,`the file`]],
+ fl:[[`Several columns`,`tokens=1,3`,`Select-Object id, city`,`cut -d, -f1,3`],[`Skip the header row`,`for /f "skip=1 tokens=2 delims=," ...`,`(the header becomes column names)`,`tail -n +2 f | cut -d, -f2`],[`Split on spaces`,`tokens=2`,`($_ -split " ")[1]`,`awk '{print $2}' f`]],
+ no:[[`tip`,`PowerShell reads the header row and gives you real column names, so you never count fields.`],[`warn`,`Inside a .bat file, write <code>%%a</code> instead of <code>%a</code>.`],[`warn`,`cut doesn't understand quoted commas such as "Hyderabad, IN". Use a CSV-aware tool for real CSV.`]],
+ qa:[[`How do you print the second column of a space-separated file?`,`awk '{print $2}' file. awk treats runs of spaces as one separator; cut -d" " does not.`]]});
+
+C({id:'sed',cat:'text',lvl:'A',name:'sed',t:`Find and replace text`,
+ c:{cmd:null,ps:`(Get-Content notes.txt) -replace 'Ravi','Kiran'`,sh:`sed 's/Ravi/Kiran/g' notes.txt`},x:NO_CMD,
+ out:{ps:[`Buy milk`,`Fix login bug`,`Call Kiran`],sh:[`Buy milk`,`Fix login bug`,`Call Kiran`]},
+ viz:{st:[{l:'notes.txt',v:NOTES,hl:[2]},{l:"s/Ravi/Kiran/g",v:[`Buy milk`,`Fix login bug`,`Call Kiran`],hl:[2]}]},
+ an:[[`sed`,`stream editor: edits text as it flows through`],[`'s/Ravi/Kiran/g'`,`s = substitute, /find/replace/, g = every match on the line`],[`notes.txt`,`input file; it is not changed unless you add -i`]],
+ fl:[[`Save changes into the file`,`—`,`(Get-Content f) -replace 'a','b' | Set-Content f`,`sed -i 's/a/b/g' f`],[`Ignore case`,`—`,`(ignores case by default)`,`sed 's/a/b/gI' f  (GNU sed)`],[`Delete matching lines`,`findstr /v "word" f`,`Get-Content f | Where-Object { $_ -notmatch 'word' }`,`sed '/word/d' f`],[`Print only lines 2 to 4`,`—`,`Get-Content f | Select-Object -Index (1..3)`,`sed -n '2,4p' f`]],
+ no:[[`warn`,`On macOS, <code>sed -i</code> needs an empty backup suffix: <code>sed -i '' 's/a/b/g' f</code>.`],[`warn`,`Wrap <code>Get-Content</code> in brackets before writing back to the same file, so it finishes reading first.`],[`tip`,`PowerShell's <code>-replace</code> uses regular expressions, just like sed.`]],
+ qa:[[`How do you replace a word in many files at once?`,`sed -i 's/old/new/g' *.txt. For subfolders, combine with find: find . -name '*.txt' -exec sed -i 's/old/new/g' {} +`]]});
+
+/* ---------------- Pipes & redirection ---------------- */
+C({id:'pipe',cat:'flow',lvl:'B',name:'|',t:`Send output into the next command`,
+ c:{cmd:`tasklist | findstr python`,ps:`Get-Process | Where-Object Name -like "*python*"`,sh:`ps aux | grep python`},
+ out:{cmd:[`python.exe                    8120 Console                    1     42,316 K`],ps:[``,`Handles  NPM(K)    PM(K)      WS(K)     CPU(s)     Id  SI ProcessName`,`-------  ------    -----      -----     ------     --  -- -----------`,`    212      21    38412      42316       1.25   8120   1 python`,``],sh:[`gk        8120  0.4  1.2 210344 42316 pts/0    S    10:05   0:01 python3 app.py`,`gk        8301  0.0  0.0   6440   720 pts/1    S+   10:22   0:00 grep python`]},
+ viz:{st:[{l:'ps aux',v:[`/sbin/init`,`sshd`,`python3 app.py`,`nginx`,`-bash`,`grep python`],hl:[2,5],dim:1},{l:'grep python',v:[`python3 app.py`,`grep python`]}]},
+ an:[[`ps aux`,`command 1: list every process`],[`|`,`pipe: feed its output into the next command`],[`grep python`,`command 2: keep only lines containing "python"`]],
+ fl:[[`Chain three commands`,`a | b | c`,`a | b | c`,`a | b | c`],[`Page long output`,`dir | more`,`Get-ChildItem | more`,`ls -l | less`]],
+ no:[[`tip`,`PowerShell pipes <b>objects</b>, not text. You filter by property (<code>Where-Object Name</code>) instead of searching text, so there are no columns to cut.`],[`tip`,`Notice that <code>grep python</code> finds itself in the bash output. <code>pgrep -a python</code> avoids that.`]],
+ qa:[[`How is a pipe in PowerShell different from bash?`,`Bash passes plain text between commands. PowerShell passes .NET objects with properties, so the next command reads fields like Name or CPU directly.`],[`Why does ps aux | grep python list the grep process too?`,`grep python is itself a running process whose command line contains "python". Use pgrep, or the trick grep [p]ython.`]]});
+
+C({id:'redirect',cat:'flow',lvl:'B',name:'> >>',t:`Save output to a file`,
+ c:{cmd:`dir > files.txt`,ps:`Get-ChildItem > files.txt`,sh:`ls > files.txt`},
+ out:{cmd:[],ps:[],sh:[]},
+ viz:{add:['files.txt']},
+ an:[[`ls`,`the command whose output we capture`],[`>`,`write the output to a file, replacing what was there`],[`files.txt`,`target file, created if missing`]],
+ fl:[[`Overwrite the file`,`> f`,`> f  (or | Out-File f)`,`> f`],[`Append to the end`,`>> f`,`>> f  (or | Add-Content f)`,`>> f`],[`Choose the encoding`,`—`,`| Out-File f -Encoding utf8`,`(follows your locale, usually UTF-8)`]],
+ no:[[`danger`,`<code>&gt;</code> silently replaces the file's contents. Use <code>&gt;&gt;</code> to add to the end.`],[`warn`,`Windows PowerShell 5.1 writes UTF-16 with <code>&gt;</code>, which other tools may read as garbage. Use <code>Out-File -Encoding utf8</code>, or PowerShell 7.`]],
+ qa:[[`What is the difference between > and >>?`,`> creates or overwrites the file. >> appends to the end, creating the file if needed.`]]});
+
+C({id:'stderr',cat:'flow',lvl:'I',name:'2>&1',t:`Capture or hide errors`,
+ c:{cmd:`build.bat > log.txt 2>&1`,ps:`.\\build.ps1 *> log.txt`,sh:`./build.sh > log.txt 2>&1`},
+ out:{cmd:[],ps:[],sh:[]},
+ viz:{add:['log.txt']},
+ an:[[`./build.sh`,`the command to run`],[`> log.txt`,`send normal output (stream 1) to log.txt`],[`2>&1`,`send errors (stream 2) to wherever stream 1 is going`]],
+ fl:[[`Errors only, to a file`,`cmd 2> err.txt`,`cmd 2> err.txt`,`cmd 2> err.txt`],[`Throw all output away`,`cmd > nul`,`cmd | Out-Null`,`cmd > /dev/null`],[`Hide errors only`,`cmd 2> nul`,`cmd 2> $null`,`cmd 2> /dev/null`],[`Output and errors to one file`,`cmd > f 2>&1`,`cmd *> f`,`cmd > f 2>&1  (or &> f)`]],
+ no:[[`warn`,`Order matters: <code>&gt; f 2&gt;&amp;1</code> captures both, but <code>2&gt;&amp;1 &gt; f</code> leaves errors on the screen.`],[`tip`,`0 is input, 1 is output, 2 is errors. These numbers are the same in all three shells.`]],
+ qa:[[`What does 2>&1 mean?`,`Point stream 2 (stderr) at wherever stream 1 (stdout) currently goes, so errors and normal output land in the same place.`],[`What is /dev/null?`,`A special file that discards everything written to it. CMD uses nul; PowerShell uses $null or Out-Null.`]]});
+
+C({id:'chain',cat:'flow',lvl:'I',name:'&&',t:`Run commands one after another`,
+ c:{cmd:`mkdir out && cd out`,ps:`mkdir out && cd out`,sh:`mkdir out && cd out`},after:'project/out',
+ out:{cmd:[],ps:[...PSH('project'),`d----          01-10-2026    10:22                out`,``],sh:[]},
+ viz:{add:['out/'],here:'out/',from:''},
+ an:[[`mkdir out`,`step 1`],[`&&`,`run step 2 only if step 1 succeeded`],[`cd out`,`step 2`]],
+ fl:[[`Only if the previous succeeded`,`a && b`,`a && b  (PowerShell 7+)`,`a && b`],[`Only if the previous failed`,`a || b`,`a || b  (PowerShell 7+)`,`a || b`],[`Always, one after another`,`a & b`,`a; b`,`a; b`]],
+ no:[[`warn`,`Windows PowerShell 5.1 doesn't support <code>&amp;&amp;</code>. Write <code>a; if ($?) { b }</code>, or upgrade to PowerShell 7.`],[`tip`,`<code>git add . &amp;&amp; git commit -m "msg" &amp;&amp; git push</code> stops at the first failure. That is the point of &amp;&amp;.`]],
+ qa:[[`What is the difference between ; and && in bash?`,`; runs the next command no matter what. && runs it only if the previous one exited with code 0 (success).`],[`How does a shell know whether a command succeeded?`,`From its exit code: 0 means success, anything else is a failure. Check it with $? in bash, %ERRORLEVEL% in CMD, $LASTEXITCODE in PowerShell.`]]});
+
+C({id:'tee',cat:'flow',lvl:'I',name:'tee',t:`Show output and save it too`,
+ c:{cmd:null,ps:`Get-ChildItem | Tee-Object files.txt`,sh:`ls | tee files.txt`},x:NO_CMD,
+ out:{ps:[...PSH('project'),`d----          01-10-2026    09:12                backup`,`d----          01-10-2026    09:12                src`,`-a---          01-10-2026    09:03            243 app.log`,`…`],sh:[`app.log`,`backup`,`data.csv`,`deploy.sh`,`names.txt`,`notes.txt`,`src`]},
+ viz:{add:['files.txt']},
+ an:[[`ls`,`the command`],[`|`,`pipe`],[`tee`,`split the stream like a T-shaped pipe fitting: screen and file`],[`files.txt`,`the file that receives a copy`]],
+ fl:[[`Append instead of overwrite`,`—`,`Tee-Object f -Append`,`tee -a f`],[`Write a file that needs root`,`—`,`—`,`echo x | sudo tee /etc/f`]],
+ no:[[`tip`,`<code>sudo echo x &gt; /etc/file</code> fails, because your shell does the <code>&gt;</code> before sudo runs. <code>echo x | sudo tee /etc/file</code> works.`]],
+ qa:[[`Why use sudo tee instead of sudo with >?`,`The > redirection is done by your own shell, without root rights. tee runs under sudo, so it can write the protected file.`]]});
+
+/* ---------------- Processes ---------------- */
+C({id:'ps',cat:'proc',lvl:'B',name:'ps',t:`List running programs`,
+ c:{cmd:`tasklist`,ps:`Get-Process`,sh:`ps aux`},al:`ps, gps`,
+ out:{cmd:[``,`Image Name                     PID Session Name        Session#    Mem Usage`,`========================= ======== ================ =========== ============`,`System Idle Process              0 Services                   0          8 K`,`explorer.exe                  4120 Console                    1    112,840 K`,`Code.exe                      6608 Console                    1    248,112 K`,`python.exe                    8120 Console                    1     42,316 K`],
+  ps:[``,`Handles  NPM(K)    PM(K)      WS(K)     CPU(s)     Id  SI ProcessName`,`-------  ------    -----      -----     ------     --  -- -----------`,`   2810     118   154220     248112      61.42   6608   1 Code`,`   1942      82    64380     112840      12.10   4120   1 explorer`,`    212      21    38412      42316       1.25   8120   1 python`,``],
+  sh:[`USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND`,`root         1  0.0  0.1 167780 11520 ?        Ss   09:00   0:02 /sbin/init`,`gk        2201  0.0  0.1  11360  5320 pts/0    Ss   09:05   0:00 -bash`,`gk        8120  0.4  1.2 210344 42316 pts/0    S    10:05   0:01 python3 app.py`]},
+ an:[[`ps`,`process status`],[`a`,`processes of all users`],[`u`,`user-friendly columns: owner, CPU, memory`],[`x`,`include processes not attached to a terminal`]],
+ fl:[[`Find one program by name`,`tasklist /fi "imagename eq python.exe"`,`Get-Process python`,`pgrep -a python`],[`Show full command lines`,`—`,`Get-CimInstance Win32_Process | Select-Object ProcessId, CommandLine`,`ps -ef`],[`Show parent/child tree`,`—`,`—`,`ps -ef --forest  (or pstree)`]],
+ no:[[`tip`,`<code>ps aux</code> has no dash: it's the old BSD style. <code>ps -ef</code> is the same idea in standard style.`],[`tip`,`The PID (process ID) is the number you give to kill, Stop-Process or taskkill.`]],
+ qa:[[`What is a PID?`,`A process ID: a unique number the OS gives each running process. You use it to inspect or stop that process.`],[`ps aux vs ps -ef?`,`Both list every process. aux is BSD syntax with %CPU and %MEM columns; -ef is System V syntax and includes the parent PID (PPID).`]]});
+
+C({id:'top',cat:'proc',lvl:'I',name:'top',t:`Watch CPU and memory live`,
+ c:{cmd:null,ps:`Get-Process | Sort-Object CPU -Descending | Select-Object -First 3`,sh:`top`},x:`No CLI equivalent in CMD. Open Task Manager with taskmgr, or use the PowerShell version.`,
+ out:{ps:[``,`Handles  NPM(K)    PM(K)      WS(K)     CPU(s)     Id  SI ProcessName`,`-------  ------    -----      -----     ------     --  -- -----------`,`   2810     118   154220     248112      61.42   6608   1 Code`,`   1942      82    64380     112840      12.10   4120   1 explorer`,`    212      21    38412      42316       1.25   8120   1 python`,``],
+  sh:[`top - 10:22:41 up  1:22,  1 user,  load average: 0.31, 0.28, 0.20`,`Tasks: 182 total,   1 running, 181 sleeping`,`%Cpu(s):  3.1 us,  1.0 sy,  0.0 ni, 95.6 id`,`MiB Mem :   7842.1 total,   3120.4 free,   2211.9 used`,``,`  PID USER      PR  NI    RES  %CPU  %MEM     TIME+ COMMAND`,` 8120 gk        20   0  42316   2.3   1.2   0:01.25 python3`,` 2201 gk        20   0   5320   0.3   0.1   0:00.04 bash`]},
+ an:[[`top`,`a live, refreshing table of the busiest processes`]],
+ fl:[[`Sort by memory`,`—`,`Sort-Object WS -Descending`,`press M inside top`],[`Quit`,`—`,`—`,`q`],[`Friendlier viewer`,`taskmgr`,`—`,`htop  (install separately)`]],
+ no:[[`tip`,`Load average is how many processes were running or waiting for CPU over the last 1, 5 and 15 minutes. Compare it with your number of CPU cores.`]],
+ qa:[[`What does load average mean in top?`,`The average number of processes running or waiting for CPU over 1, 5 and 15 minutes. On a 4-core machine, a load of 4 means fully busy.`]]});
+
+C({id:'kill',cat:'proc',lvl:'B',name:'kill',t:`Stop a program`,
+ c:{cmd:`taskkill /PID 8120`,ps:`Stop-Process -Id 8120`,sh:`kill 8120`},al:`kill, spps`,
+ out:{cmd:[`SUCCESS: Sent termination signal to the process with PID 8120.`],ps:[],sh:[]},
+ an:[[`kill`,`send a signal to a process; by default, "please stop"`],[`8120`,`the PID you got from ps`]],
+ fl:[[`Force it to stop`,`taskkill /PID 8120 /F`,`Stop-Process -Id 8120 -Force`,`kill -9 8120`],[`Stop by program name`,`taskkill /IM python.exe`,`Stop-Process -Name python`,`pkill python`],[`Stop it and its children`,`taskkill /PID 8120 /T`,`—`,`pkill -P 8120`]],
+ no:[[`warn`,`<code>kill -9</code> can't be caught: the program gets no chance to save or clean up. Try plain <code>kill</code> first.`],[`tip`,`Ctrl+C stops the program running in the foreground of your terminal.`]],
+ qa:[[`What is the difference between kill and kill -9?`,`kill sends SIGTERM (15), asking the process to exit cleanly. kill -9 sends SIGKILL, which the OS enforces at once, so the process can't clean up.`],[`How do you stop whatever is using port 8080?`,`Linux: kill $(lsof -t -i:8080). Windows: netstat -ano | findstr :8080 to get the PID, then taskkill /PID <pid> /F.`]]});
+
+C({id:'bg',cat:'proc',lvl:'A',name:'&',t:`Run in the background`,
+ c:{cmd:`start /b python app.py`,ps:`Start-Job { python app.py }`,sh:`python3 app.py &`},
+ out:{cmd:[],ps:[``,`Id     Name   PSJobTypeName   State     HasMoreData   Command`,`--     ----   -------------   -----     -----------   -------`,`1      Job1   BackgroundJob   Running   True          python app.py`,``],sh:[`[1] 8120`]},
+ an:[[`python3 app.py`,`the command`],[`&`,`start it in the background and give the prompt back right away`]],
+ fl:[[`List background jobs`,`—`,`Get-Job`,`jobs`],[`Get its output / bring it back`,`—`,`Receive-Job 1`,`fg %1`],[`Pause the current program`,`—`,`—`,`Ctrl+Z, then bg to resume in background`],[`Keep running after logout`,`—`,`—`,`nohup cmd &  (or tmux)`]],
+ no:[[`tip`,`PowerShell 7 also accepts a trailing <code>&amp;</code>, which starts a job.`],[`warn`,`Background jobs stop when you close the terminal unless you use <code>nohup</code>, <code>tmux</code> or a service.`]],
+ qa:[[`How do you keep a script running after you log out of SSH?`,`nohup ./script.sh &, or run it inside tmux or screen, or turn it into a systemd service.`]]});
+
+C({id:'which',cat:'proc',lvl:'I',name:'which',t:`Find where a command lives`,
+ c:{cmd:`where python`,ps:`Get-Command python`,sh:`which python3`},al:`gcm`,
+ out:{cmd:[`C:\\Users\\gk\\AppData\\Local\\Programs\\Python\\Python312\\python.exe`],ps:[``,`CommandType     Name          Version    Source`,`-----------     ----          -------    ------`,`Application     python.exe    3.12.4     C:\\Users\\gk\\AppData\\Local\\Programs\\Pyth…`,``],sh:[`/usr/bin/python3`]},
+ an:[[`which`,`search the folders on PATH for a command`],[`python3`,`the command name`]],
+ fl:[[`Show every match`,`where python`,`Get-Command python -All`,`which -a python3`],[`Alias, built-in or program?`,`—`,`Get-Command ls`,`type ls`]],
+ no:[[`tip`,`With two versions installed, the first match on PATH wins. <code>where</code> and <code>which -a</code> show the order.`],[`tip`,`<code>Get-Command ls</code> reveals that ls in PowerShell is an alias for Get-ChildItem.`]],
+ qa:[[`"command not found", but the program is installed. Why?`,`Its folder isn't on PATH. Add the folder to PATH, or run the program by its full path.`]]});
+/* ---------------- Network ---------------- */
+C({id:'ping',cat:'net',lvl:'B',name:'ping',t:`Check if a host is reachable`,
+ c:{cmd:`ping -n 2 google.com`,ps:`Test-Connection google.com -Count 2`,sh:`ping -c 2 google.com`},
+ out:{cmd:[``,`Pinging google.com [142.250.196.14] with 32 bytes of data:`,`Reply from 142.250.196.14: bytes=32 time=18ms TTL=117`,`Reply from 142.250.196.14: bytes=32 time=17ms TTL=117`,``,`Ping statistics for 142.250.196.14:`,`    Packets: Sent = 2, Received = 2, Lost = 0 (0% loss)`],
+  ps:[``,`   Destination: google.com`,``,`Ping Source      Address          Latency(ms) Status`,`---- ------      -------          ----------- ------`,`   1 GK-LAPTOP   142.250.196.14            18 Success`,`   2 GK-LAPTOP   142.250.196.14            17 Success`,``],
+  sh:[`PING google.com (142.250.196.14) 56(84) bytes of data.`,`64 bytes from 142.250.196.14: icmp_seq=1 ttl=117 time=18.2 ms`,`64 bytes from 142.250.196.14: icmp_seq=2 ttl=117 time=17.6 ms`,``,`--- google.com ping statistics ---`,`2 packets transmitted, 2 received, 0% packet loss, time 1001ms`]},
+ an:[[`ping`,`send small echo packets and time the replies`],[`-c 2`,`count: stop after 2 packets`],[`google.com`,`the host to test`]],
+ fl:[[`Number of pings`,`ping -n 4 host`,`Test-Connection host -Count 4`,`ping -c 4 host`],[`Ping until stopped`,`ping -t host`,`Test-Connection host -Repeat  (PowerShell 7)`,`ping host  (default)`],[`Just "up" or "down"`,`—`,`Test-Connection host -Quiet`,`ping -c 1 host > /dev/null && echo up`]],
+ no:[[`warn`,`Linux and macOS ping forever until Ctrl+C; Windows stops after 4. The count flag differs too: <code>-c</code> versus <code>-n</code>.`],[`tip`,`No reply doesn't always mean the host is down. Many servers simply block ping.`]],
+ qa:[[`A website won't load. How do you troubleshoot from the terminal?`,`ping the host (is it reachable?), nslookup or dig (does the name resolve?), curl -I the URL (does the web server answer, with which status?), then check ports and the firewall.`]]});
+
+C({id:'curl',cat:'net',lvl:'I',name:'curl',t:`Call a URL or API`,
+ c:{cmd:`curl -I https://example.com`,ps:`Invoke-WebRequest https://example.com -Method Head`,sh:`curl -I https://example.com`},
+ out:{cmd:[`HTTP/1.1 200 OK`,`Content-Type: text/html`,`Content-Length: 1256`,`Date: Thu, 01 Oct 2026 04:52:10 GMT`],ps:[``,`StatusCode        : 200`,`StatusDescription : OK`,`Headers           : {[Content-Type, text/html], [Content-Length, 1256]}`,``],sh:[`HTTP/1.1 200 OK`,`Content-Type: text/html`,`Content-Length: 1256`,`Date: Thu, 01 Oct 2026 04:52:10 GMT`]},
+ an:[[`curl`,`client for URLs: send a request and print the response`],[`-I`,`fetch the headers only (a HEAD request)`],[`https://example.com`,`the URL`]],
+ fl:[[`Download a file`,`curl -O URL`,`Invoke-WebRequest URL -OutFile f`,`curl -O URL`],[`Follow redirects`,`curl -L URL`,`(follows by default)`,`curl -L URL`],[`POST JSON`,`curl -X POST -H "Content-Type: application/json" -d "{\\"a\\":1}" URL`,`Invoke-RestMethod URL -Method Post -Body '{"a":1}' -ContentType application/json`,`curl -X POST -H 'Content-Type: application/json' -d '{"a":1}' URL`],[`Read a JSON reply`,`—`,`Invoke-RestMethod URL  (returns objects)`,`curl -s URL | jq .`]],
+ no:[[`warn`,`In Windows PowerShell 5.1, <code>curl</code> is an alias for Invoke-WebRequest, with different options. Type <code>curl.exe</code> to get real curl.`],[`tip`,`Windows 10 and later ship real curl.exe, so CMD takes the same flags as Linux. Only JSON quoting differs: CMD needs escaped double quotes.`]],
+ qa:[[`How do you test a REST API from the command line?`,`curl with -X for the method, -H for headers and -d for the body; -i shows the response headers. In PowerShell, Invoke-RestMethod returns the JSON as objects.`]]});
+
+C({id:'ip',cat:'net',lvl:'B',name:'ip addr',t:`Show your IP address`,
+ c:{cmd:`ipconfig`,ps:`Get-NetIPAddress -AddressFamily IPv4`,sh:`ip addr`},
+ out:{cmd:[``,`Wireless LAN adapter Wi-Fi:`,``,`   IPv4 Address. . . . . . . . . . . : 192.168.1.24`,`   Subnet Mask . . . . . . . . . . . : 255.255.255.0`,`   Default Gateway . . . . . . . . . : 192.168.1.1`],ps:[``,`IPAddress         : 192.168.1.24`,`InterfaceAlias    : Wi-Fi`,`AddressFamily     : IPv4`,`PrefixLength      : 24`,``],sh:[`1: lo: <LOOPBACK,UP> mtu 65536`,`    inet 127.0.0.1/8 scope host lo`,`2: wlan0: <BROADCAST,MULTICAST,UP> mtu 1500`,`    inet 192.168.1.24/24 brd 192.168.1.255 scope global wlan0`]},
+ an:[[`ip`,`the Linux network configuration tool`],[`addr`,`show the addresses on each network interface`]],
+ fl:[[`Full details, including DNS`,`ipconfig /all`,`Get-NetIPConfiguration`,`resolvectl status`],[`Gateway and routes`,`route print`,`Get-NetRoute`,`ip route`],[`Flush the DNS cache`,`ipconfig /flushdns`,`Clear-DnsClientCache`,`resolvectl flush-caches`],[`Your public IP`,`curl ifconfig.me`,`Invoke-RestMethod ifconfig.me`,`curl ifconfig.me`]],
+ no:[[`tip`,`macOS uses <code>ifconfig</code>. Most Linux systems replaced it with <code>ip</code>.`],[`tip`,`192.168.x.x, 10.x.x.x and 172.16–31.x.x are private addresses. Your public IP is your router's.`]],
+ qa:[[`What does /24 mean in 192.168.1.24/24?`,`CIDR notation: the first 24 bits are the network part, the same as subnet mask 255.255.255.0. That network holds 254 usable hosts.`]]});
+
+C({id:'ports',cat:'net',lvl:'A',name:'ss',t:`See which ports are in use`,
+ c:{cmd:`netstat -ano | findstr :8080`,ps:`Get-NetTCPConnection -LocalPort 8080`,sh:`ss -ltnp | grep 8080`},
+ out:{cmd:[`  TCP    0.0.0.0:8080           0.0.0.0:0              LISTENING       8120`],ps:[``,`LocalAddress LocalPort RemoteAddress RemotePort State  OwningProcess`,`------------ --------- ------------- ---------- -----  -------------`,`0.0.0.0           8080 0.0.0.0                0 Listen          8120`,``],sh:[`LISTEN 0  511  0.0.0.0:8080  0.0.0.0:*  users:(("python3",pid=8120,fd=3))`]},
+ an:[[`ss`,`socket statistics`],[`-l`,`listening sockets only`],[`-t`,`TCP`],[`-n`,`show numbers, not service names`],[`-p`,`show the owning process`],[`| grep 8080`,`keep only the line for port 8080`]],
+ fl:[[`Every listening port`,`netstat -an | findstr LISTENING`,`Get-NetTCPConnection -State Listen`,`ss -ltn`],[`Who owns port 8080 (macOS)`,`—`,`—`,`lsof -i :8080`],[`Is a remote port open?`,`—`,`Test-NetConnection host -Port 443`,`nc -zv host 443`]],
+ no:[[`tip`,`On Linux, <code>-p</code> needs sudo to show processes owned by other users.`],[`tip`,`"Address already in use" is fixed with this command: find the PID, then stop that process.`]],
+ qa:[[`How do you find which process is using a port?`,`Linux: ss -ltnp | grep :PORT or lsof -i :PORT. Windows: netstat -ano | findstr :PORT, then tasklist /fi "pid eq <PID>".`]]});
+
+C({id:'dns',cat:'net',lvl:'I',name:'dig',t:`Look up a domain (DNS)`,
+ c:{cmd:`nslookup example.com`,ps:`Resolve-DnsName example.com`,sh:`dig +short example.com`},
+ out:{cmd:[`Server:  router.local`,`Address:  192.168.1.1`,``,`Non-authoritative answer:`,`Name:    example.com`,`Address:  93.184.215.14`],ps:[``,`Name           Type   TTL   Section    IPAddress`,`----           ----   ---   -------    ---------`,`example.com    A      3600  Answer     93.184.215.14`,``],sh:[`93.184.215.14`]},
+ an:[[`dig`,`domain information groper: a DNS lookup tool`],[`+short`,`print just the answer`],[`example.com`,`the domain to resolve`]],
+ fl:[[`Mail servers`,`nslookup -type=mx example.com`,`Resolve-DnsName example.com -Type MX`,`dig MX example.com`],[`Ask a specific DNS server`,`nslookup example.com 8.8.8.8`,`Resolve-DnsName example.com -Server 8.8.8.8`,`dig @8.8.8.8 example.com`]],
+ no:[[`tip`,`nslookup is also available on Linux and macOS, so it's the one DNS command that works everywhere.`]],
+ qa:[[`What happens when you type a URL into a browser?`,`DNS turns the name into an IP, a TCP (and TLS) connection opens, an HTTP request goes out, and the server replies. dig and nslookup let you test the DNS step on its own.`]]});
+
+C({id:'ssh',cat:'net',lvl:'I',name:'ssh',t:`Log in to a remote server`,
+ c:{cmd:`ssh gk@10.0.0.5`,ps:`ssh gk@10.0.0.5`,sh:`ssh gk@10.0.0.5`},
+ out:{cmd:[`gk@10.0.0.5's password:`,`Welcome to Ubuntu 24.04 LTS`,`gk@server:~$`],ps:[`gk@10.0.0.5's password:`,`Welcome to Ubuntu 24.04 LTS`,`gk@server:~$`],sh:[`gk@10.0.0.5's password:`,`Welcome to Ubuntu 24.04 LTS`,`gk@server:~$`]},noNext:1,
+ an:[[`ssh`,`secure shell: an encrypted remote login`],[`gk`,`your username on the server`],[`@10.0.0.5`,`the server's address`]],
+ fl:[[`Log in with a key file`,`ssh -i key.pem gk@host`,`ssh -i key.pem gk@host`,`ssh -i key.pem gk@host`],[`Different port`,`ssh -p 2222 gk@host`,`ssh -p 2222 gk@host`,`ssh -p 2222 gk@host`],[`Create a key pair`,`ssh-keygen`,`ssh-keygen`,`ssh-keygen -t ed25519`],[`Copy a file to the server`,`scp f gk@host:/tmp/`,`scp f gk@host:/tmp/`,`scp f gk@host:/tmp/`]],
+ no:[[`tip`,`Windows 10 and later include OpenSSH, so this command is identical in all three shells.`],[`warn`,`Keep your private key private. On Linux and macOS, ssh refuses a key file that others can read: <code>chmod 600 key.pem</code>.`]],
+ qa:[[`How does SSH key authentication work?`,`You keep the private key; the server stores your public key in ~/.ssh/authorized_keys. The server sends a challenge that only the private key can answer, so no password crosses the network.`]]});
+
+/* ---------------- Permissions & users ---------------- */
+C({id:'chmod',cat:'perm',lvl:'I',name:'chmod',t:`Change file permissions`,
+ c:{cmd:`icacls deploy.sh /grant gk:RX`,ps:`icacls deploy.sh /grant gk:RX`,sh:`chmod 755 deploy.sh`},
+ out:{cmd:ICACLS,ps:ICACLS,sh:[]},
+ viz:{perm:'755'},
+ an:[[`chmod`,`change mode (permissions)`],[`755`,`owner rwx (7), group r-x (5), others r-x (5)`],[`deploy.sh`,`the file`]],
+ fl:[[`Make a script executable`,`(decided by extension)`,`(decided by extension)`,`chmod +x f`],[`Read-only for everyone`,`attrib +r f`,`Set-ItemProperty f IsReadOnly $true`,`chmod 444 f`],[`Private to you only`,`icacls f /inheritance:r /grant:r gk:F`,`icacls f /inheritance:r /grant:r gk:F`,`chmod 600 f`],[`A whole folder tree`,`icacls dir /grant gk:F /t`,`icacls dir /grant gk:F /t`,`chmod -R 755 dir`]],
+ no:[[`tip`,`Windows has no execute bit. It decides by extension (.exe, .bat), and PowerShell scripts are governed by the execution policy instead.`],[`danger`,`<code>chmod 777</code> lets anyone change or run the file. It "fixes" permission errors by removing security.`]],
+ qa:[[`What does chmod 755 mean?`,`Each digit adds read (4), write (2) and execute (1). 7 = rwx for the owner, 5 = r-x for the group and for everyone else.`],[`Why does ./script.sh say "Permission denied"?`,`The file lacks the execute bit. Run chmod +x script.sh, or start it as bash script.sh.`]]});
+
+C({id:'chown',cat:'perm',lvl:'A',name:'chown',t:`Change the owner`,
+ c:{cmd:`icacls deploy.sh /setowner gk`,ps:`icacls deploy.sh /setowner gk`,sh:`sudo chown gk:dev deploy.sh`},
+ out:{cmd:ICACLS,ps:ICACLS,sh:[]},
+ an:[[`sudo`,`run as administrator; changing owners needs it`],[`chown`,`change owner`],[`gk:dev`,`new owner gk, new group dev`],[`deploy.sh`,`the file`]],
+ fl:[[`A whole folder`,`icacls dir /setowner gk /t`,`icacls dir /setowner gk /t`,`sudo chown -R gk:dev dir`],[`Take ownership yourself`,`takeown /f f`,`takeown /f f`,`sudo chown $USER f`],[`Change the group only`,`—`,`—`,`chgrp dev f`]],
+ no:[[`tip`,`A very common fix: files created with sudo end up owned by root. <code>sudo chown -R $USER:$USER folder</code> gives them back to you.`]],
+ qa:[[`What is the difference between chmod and chown?`,`chmod changes what can be done with a file (read, write, execute). chown changes who owns it.`]]});
+
+C({id:'sudo',cat:'perm',lvl:'I',name:'sudo',t:`Run as administrator`,
+ c:{cmd:`sudo notepad C:\\Windows\\System32\\drivers\\etc\\hosts`,ps:`Start-Process notepad C:\\Windows\\System32\\drivers\\etc\\hosts -Verb RunAs`,sh:`sudo nano /etc/hosts`},
+ out:{cmd:[],ps:[],sh:[`[sudo] password for gk:`]},noNext:1,
+ an:[[`sudo`,`superuser do: run one command as root`],[`nano /etc/hosts`,`the command that needs admin rights`]],
+ fl:[[`Open an admin shell`,`(right-click, Run as administrator)`,`Start-Process pwsh -Verb RunAs`,`sudo -i`],[`Repeat the last command as admin`,`—`,`—`,`sudo !!`],[`Run as another user`,`runas /user:name cmd`,`Start-Process cmd -Credential name`,`sudo -u name cmd`]],
+ no:[[`warn`,`<code>sudo</code> on Windows exists only on Windows 11 24H2 and later, and must be turned on in Settings, System, For developers.`],[`danger`,`Don't paste <code>sudo</code> commands from the internet that you don't understand. They run with full control of the machine.`]],
+ qa:[[`What is the difference between su and sudo?`,`su switches to another user (usually root) with that user's password. sudo runs one command as root with your own password, and is logged and limited by /etc/sudoers.`]]});
+
+C({id:'whoami',cat:'perm',lvl:'B',name:'whoami',t:`Show the current user`,
+ c:{cmd:`whoami`,ps:`whoami`,sh:`whoami`},
+ out:{cmd:[`gk-laptop\\gk`],ps:[`gk-laptop\\gk`],sh:[`gk`]},
+ an:[[`whoami`,`print the user you are logged in as`]],
+ fl:[[`Groups you belong to`,`whoami /groups`,`whoami /groups`,`groups  (or id)`],[`User name only`,`echo %USERNAME%`,`$env:USERNAME`,`echo $USER`]],
+ no:[[`tip`,`Windows prints <code>machine\\user</code>, or <code>domain\\user</code> on a work PC.`]],
+ qa:[[`How do you check whether you are root?`,`whoami prints root, or id -u prints 0.`]]});
+
+/* ---------------- System & environment ---------------- */
+C({id:'env',cat:'sys',lvl:'B',name:'echo $VAR',t:`Read an environment variable`,
+ c:{cmd:`echo %USERNAME%`,ps:`$env:USERNAME`,sh:`echo $USER`},
+ out:{cmd:[`gk`],ps:[`gk`],sh:[`gk`]},
+ an:[[`echo`,`print`],[`$USER`,`$ means "the value of"; USER is the variable's name`]],
+ fl:[[`List every variable`,`set`,`Get-ChildItem env:`,`env  (or printenv)`],[`Your home folder`,`echo %USERPROFILE%`,`$HOME`,`echo $HOME`],[`Temp folder`,`echo %TEMP%`,`$env:TEMP`,`echo $TMPDIR  (or /tmp)`]],
+ no:[[`warn`,`Names are case-insensitive on Windows (%path% is %PATH%) but case-sensitive on Linux ($user is not $USER).`]],
+ qa:[[`What is an environment variable?`,`A named value the OS passes to every program started from that shell, such as PATH, HOME or an API key. Programs read them for configuration.`]]});
+
+C({id:'export',cat:'sys',lvl:'I',name:'export',t:`Set an environment variable`,
+ c:{cmd:`set APP_ENV=dev`,ps:`$env:APP_ENV = "dev"`,sh:`export APP_ENV=dev`},
+ out:{cmd:[],ps:[],sh:[]},
+ an:[[`export`,`make the variable visible to programs started from this shell`],[`APP_ENV`,`the name`],[`=dev`,`the value; no spaces around =`]],
+ fl:[[`Keep it for new terminals`,`setx APP_ENV dev`,`[Environment]::SetEnvironmentVariable("APP_ENV","dev","User")`,`add the export line to ~/.bashrc or ~/.zshrc`],[`For one command only`,`—`,`—`,`APP_ENV=dev python3 app.py`],[`Remove it`,`set APP_ENV=`,`Remove-Item env:APP_ENV`,`unset APP_ENV`]],
+ no:[[`warn`,`Spaces matter. <code>export A = 1</code> fails in bash, and <code>set A = 1</code> in CMD makes a variable named "A " with the value " 1".`],[`tip`,`<code>setx</code> doesn't change the window you're in. Open a new terminal to see the value.`]],
+ qa:[[`Why does my variable disappear when I close the terminal?`,`set, $env: and export only last for that session. Use setx, your PowerShell $PROFILE, or ~/.bashrc to keep it.`],[`Shell variable vs environment variable?`,`A shell variable (A=1) is visible only inside that shell. export copies it into the environment so child processes see it too.`]]});
+
+C({id:'path',cat:'sys',lvl:'I',name:'$PATH',t:`See where commands are searched`,
+ c:{cmd:`echo %PATH%`,ps:`$env:Path -split ";"`,sh:`echo $PATH | tr ':' '\\n'`},
+ out:{cmd:[`C:\\Windows\\system32;C:\\Windows;C:\\Program Files\\Git\\cmd;C:\\Users\\gk\\AppData\\Local\\Programs\\Python\\Python312`],ps:[`C:\\Windows\\system32`,`C:\\Windows`,`C:\\Program Files\\Git\\cmd`,`C:\\Users\\gk\\AppData\\Local\\Programs\\Python\\Python312`],sh:[`/usr/local/bin`,`/usr/bin`,`/bin`,`/home/gk/.local/bin`]},
+ an:[[`echo $PATH`,`print the PATH variable`],[`|`,`pipe it into`],[`tr ':' '\\n'`,`translate each : into a new line so it's readable`]],
+ fl:[[`Add a folder, this session only`,`set PATH=%PATH%;C:\\tools`,`$env:Path += ";C:\\tools"`,`export PATH="$PATH:$HOME/tools"`]],
+ no:[[`warn`,`The separator is <code>;</code> on Windows and <code>:</code> on Linux and macOS.`],[`tip`,`Folders are searched left to right, and the first match wins.`],[`warn`,`Avoid <code>setx PATH "%PATH%;..."</code>: it can cut PATH off at 1024 characters and mixes system and user entries. Use the Environment Variables dialog instead.`]],
+ qa:[[`What is PATH?`,`A list of folders the shell searches, in order, when you type a command name without a path.`],[`Why do you need ./ to run a script in the current folder on Linux?`,`The current folder isn't on PATH, for security, so you must give a path: ./script.sh.`]]});
+
+C({id:'df',cat:'sys',lvl:'B',name:'df',t:`Free disk space`,
+ c:{cmd:`fsutil volume diskfree C:`,ps:`Get-PSDrive -PSProvider FileSystem`,sh:`df -h`},
+ out:{cmd:[`Total free bytes        :  48,203,513,856 ( 44.9 GB)`,`Total bytes             : 255,388,103,680 (237.9 GB)`],ps:[``,`Name           Used (GB)     Free (GB) Provider      Root`,`----           ---------     --------- --------      ----`,`C                 193.00         44.89 FileSystem    C:\\`,``],sh:[`Filesystem      Size  Used Avail Use% Mounted on`,`/dev/sda2       234G  182G   41G  82% /`,`tmpfs           3.9G     0  3.9G   0% /dev/shm`]},
+ an:[[`df`,`disk free`],[`-h`,`human-readable sizes (G, M)`]],
+ fl:[[`One drive or folder`,`fsutil volume diskfree D:`,`Get-PSDrive D`,`df -h /home`],[`Count of files (inodes)`,`—`,`—`,`df -i`]],
+ no:[[`tip`,`The last line of <code>dir</code> also shows free space, with no admin rights needed.`]],
+ qa:[[`A server says "No space left on device". What do you check?`,`df -h to find the full filesystem, then du -sh * in large folders such as /var/log to see what's using it. Also check inodes with df -i.`]]});
+
+C({id:'du',cat:'sys',lvl:'I',name:'du',t:`Folder size`,
+ c:{cmd:`dir /s src`,ps:`(Get-ChildItem src -Recurse | Measure-Object Length -Sum).Sum`,sh:`du -sh src`},
+ out:{cmd:[`     Total Files Listed:`,`               2 File(s)            716 bytes`],ps:[`716`],sh:[`8.0K    src`]},
+ viz:{show:['src/','src/main.py','src/utils.py'],tag:'counted'},
+ an:[[`du`,`disk usage`],[`-s`,`summary: one total, not every subfolder`],[`-h`,`human-readable sizes`],[`src`,`the folder to measure`]],
+ fl:[[`Size of each item here`,`—`,`Get-ChildItem | ForEach-Object { ... }`,`du -sh *`],[`Biggest first`,`—`,`—`,`du -sh * | sort -rh | head`]],
+ no:[[`tip`,`du reports space used on disk, counted in blocks, so a tiny file still shows as 4K.`]],
+ qa:[[`How do you find the largest folders?`,`du -sh * | sort -rh | head on Linux and macOS. On Windows, sum Length per folder in PowerShell, or use a tool such as TreeSize.`]]});
+
+C({id:'uname',cat:'sys',lvl:'B',name:'uname',t:`System and OS info`,
+ c:{cmd:`ver`,ps:`$PSVersionTable.PSVersion`,sh:`uname -a`},
+ out:{cmd:[``,`Microsoft Windows [Version 10.0.26100.4652]`],ps:[``,`Major  Minor  Patch  PreReleaseLabel BuildLabel`,`-----  -----  -----  --------------- ----------`,`7      4      5`,``],sh:[`Linux dev 6.8.0-45-generic #45-Ubuntu SMP x86_64 GNU/Linux`]},
+ an:[[`uname`,`Unix name: print system information`],[`-a`,`all fields: kernel, host name, version, architecture`]],
+ fl:[[`Full system details`,`systeminfo`,`Get-ComputerInfo`,`cat /etc/os-release`],[`Computer name`,`hostname`,`hostname`,`hostname`],[`Time since boot`,`—`,`(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime`,`uptime`]],
+ no:[[`tip`,`<code>$PSVersionTable</code> tells you whether you're on Windows PowerShell 5.1 or PowerShell 7, which matters for features like &amp;&amp;.`]],
+ qa:[[`How do you check which Linux distribution you are on?`,`cat /etc/os-release (or lsb_release -a). uname only shows the kernel.`]]});
+
+/* ---------------- Archives & packages ---------------- */
+C({id:'tar',cat:'pkg',lvl:'I',name:'tar',t:`Pack or unpack a .tar.gz`,
+ c:{cmd:`tar -czf src.tar.gz src`,ps:`tar -czf src.tar.gz src`,sh:`tar -czf src.tar.gz src`},
+ out:{cmd:[],ps:[],sh:[]},
+ viz:{add:['src.tar.gz'],show:['src/','src/main.py','src/utils.py'],tag:'packed'},
+ an:[[`tar`,`tape archive`],[`-c`,`create a new archive`],[`-z`,`compress it with gzip`],[`-f src.tar.gz`,`the archive's file name (f comes last in the group)`],[`src`,`what to pack`]],
+ fl:[[`Extract`,`tar -xzf a.tar.gz`,`tar -xzf a.tar.gz`,`tar -xzf a.tar.gz`],[`List contents`,`tar -tzf a.tar.gz`,`tar -tzf a.tar.gz`,`tar -tzf a.tar.gz`],[`Extract into a folder`,`tar -xzf a.tar.gz -C out`,`tar -xzf a.tar.gz -C out`,`tar -xzf a.tar.gz -C out`]],
+ no:[[`tip`,`Remember the letters: <b>c</b>reate or e<b>x</b>tract, <b>z</b> for gzip, <b>f</b> for file, <b>v</b> to list names as it works.`],[`tip`,`Windows 10 and later include tar.exe, so the same command works in CMD and PowerShell.`]],
+ qa:[[`What do the flags in tar -xzvf mean?`,`x extract, z gunzip, v verbose (list the files), f the archive's file name follows.`]]});
+
+C({id:'zip',cat:'pkg',lvl:'B',name:'zip',t:`Zip or unzip`,
+ c:{cmd:`tar -a -cf src.zip src`,ps:`Compress-Archive src src.zip`,sh:`zip -r src.zip src`},
+ out:{cmd:[],ps:[],sh:[`  adding: src/ (stored 0%)`,`  adding: src/main.py (deflated 41%)`,`  adding: src/utils.py (deflated 30%)`]},
+ viz:{add:['src.zip'],show:['src/','src/main.py','src/utils.py'],tag:'packed'},
+ an:[[`zip`,`create a .zip archive`],[`-r`,`include folders and everything in them`],[`src.zip`,`the archive's name`],[`src`,`what to pack`]],
+ fl:[[`Unzip`,`tar -xf src.zip`,`Expand-Archive src.zip`,`unzip src.zip`],[`Unzip into a folder`,`tar -xf src.zip -C out`,`Expand-Archive src.zip out`,`unzip src.zip -d out`]],
+ no:[[`warn`,`zip and unzip aren't always installed on Linux: <code>sudo apt install zip unzip</code>.`],[`tip`,`CMD has no zip command, but Windows' tar can write a zip with <code>-a</code>, which picks the format from the .zip extension.`]],
+ qa:[[`tar.gz or zip?`,`zip compresses each file separately and opens natively on Windows. tar.gz bundles everything and then compresses, is usually smaller, and keeps Unix permissions.`]]});
+
+C({id:'install',cat:'pkg',lvl:'B',name:'apt install',t:`Install software`,
+ c:{cmd:`winget install Git.Git`,ps:`winget install Git.Git`,sh:`sudo apt install git`},
+ out:{cmd:[`Found Git [Git.Git] Version 2.51.0`,`Downloading https://github.com/git-for-windows/…`,`Successfully installed`],ps:[`Found Git [Git.Git] Version 2.51.0`,`Downloading https://github.com/git-for-windows/…`,`Successfully installed`],sh:[`Reading package lists... Done`,`The following NEW packages will be installed:`,`  git`,`Setting up git (1:2.43.0-1ubuntu7) ...`]},
+ an:[[`sudo`,`installing for the whole system needs admin rights`],[`apt`,`the package manager on Debian and Ubuntu`],[`install git`,`the action and the package name`]],
+ fl:[[`Search for a package`,`winget search git`,`winget search git`,`apt search git`],[`Update everything`,`winget upgrade --all`,`winget upgrade --all`,`sudo apt update && sudo apt upgrade`],[`Uninstall`,`winget uninstall Git.Git`,`winget uninstall Git.Git`,`sudo apt remove git`],[`On macOS`,`—`,`—`,`brew install git`]],
+ no:[[`tip`,`The package manager depends on the system: <code>apt</code> on Ubuntu/Debian, <code>dnf</code> on Fedora/RHEL, <code>brew</code> on macOS, <code>winget</code> on Windows.`],[`tip`,`<code>apt update</code> refreshes the list of available versions; <code>apt upgrade</code> installs them.`]],
+ qa:[[`apt update vs apt upgrade?`,`update downloads the latest package lists; upgrade installs newer versions of what you already have. Run update first.`]]});
+
+/* ---------------- General interview questions ---------------- */
+const GEN=[
+ [`What is the difference between a terminal and a shell?`,`The terminal is the window that shows text and takes your keystrokes. The shell is the program running inside it that interprets commands. Windows Terminal can host PowerShell, CMD or bash.`],
+ [`How is PowerShell different from bash?`,`PowerShell passes objects instead of text, uses Verb-Noun command names, is case-insensitive and is built on .NET. Bash chains small text tools. PowerShell 7 also runs on Linux and macOS.`],
+ [`What are stdin, stdout and stderr?`,`The three standard streams: 0 is input, 1 is normal output, 2 is errors. Redirection (>, 2>, 2>&1) works by pointing these streams somewhere else.`],
+ [`What is an exit code?`,`A number a program returns when it finishes. 0 means success and anything else is a failure. Scripts and && / || decide what to do next based on it.`],
+ [`What is a shebang?`,`The first line of a script, like #!/bin/bash or #!/usr/bin/env python3. It tells the OS which interpreter should run the file.`],
+ [`Why won't my .ps1 script run?`,`PowerShell's execution policy blocks scripts by default on Windows clients. Set-ExecutionPolicy -Scope CurrentUser RemoteSigned allows your own local scripts.`],
+ [`Single quotes vs double quotes in bash?`,`Single quotes keep everything literal. Double quotes still expand variables and $(commands). PowerShell follows the same rule.`],
+ [`A bash script fails with "bad interpreter: /bin/bash^M". Why?`,`The file has Windows line endings (CRLF). Convert it to LF with dos2unix, or change the line ending in your editor.`],
+ [`How do you run a command on every file a search finds?`,`find . -name "*.log" -exec gzip {} + in bash, or pipe into xargs. In PowerShell: Get-ChildItem *.log | ForEach-Object { ... }.`],
+ [`What is the difference between a process and a service (daemon)?`,`A process is any running program. A service, or daemon on Linux, is a background process started and managed by the system, usually at boot, without a terminal.`]
+];
+
+/* =========================================================
+   ADDITIONS: Services & maintenance, Git, Python & data tools
+   ========================================================= */
+CATS.splice(CATS.findIndex(c=>c.id==='proc')+1,0,{id:'admin',name:'Services & maintenance',sub:'Services, logs, tasks, restarts'});
+CATS.push({id:'git',name:'Git in each shell',sub:'Same commands, different quoting'});
+CATS.push({id:'py', name:'Python & data tools',sub:'venv, pip, conda, Streamlit, Jupyter'});
+
+/* ---------------- Services & maintenance ---------------- */
+C({id:'svc',cat:'admin',lvl:'I',name:'systemctl',t:`List services`,
+ c:{cmd:`sc query`,ps:`Get-Service`,sh:`systemctl list-units --type=service`},al:`gsv`,
+ out:{cmd:[``,`SERVICE_NAME: Spooler`,`DISPLAY_NAME: Print Spooler`,`        TYPE               : 110  WIN32_OWN_PROCESS`,`        STATE              : 4  RUNNING`,`…`],
+  ps:[``,`Status   Name               DisplayName`,`------   ----               -----------`,`Running  Spooler            Print Spooler`,`Running  W32Time            Windows Time`,`Stopped  wuauserv           Windows Update`,``],
+  sh:[`  UNIT            LOAD   ACTIVE SUB     DESCRIPTION`,`  cron.service    loaded active running Regular background program processing daemon`,`  nginx.service   loaded active running A high performance web server`,`  ssh.service     loaded active running OpenBSD Secure Shell server`]},
+ an:[[`systemctl`,`the tool that controls services (systemd) on most Linux systems`],[`list-units`,`list what systemd manages`],[`--type=service`,`only services, not mounts or timers`]],
+ fl:[[`Status of one service`,`sc query Spooler`,`Get-Service Spooler`,`systemctl status nginx`],[`Only running services`,`net start`,`Get-Service | Where-Object Status -eq Running`,`systemctl list-units --type=service --state=running`],[`Start automatically at boot`,`sc config Spooler start= auto`,`Set-Service Spooler -StartupType Automatic`,`sudo systemctl enable nginx`]],
+ no:[[`warn`,`<code>sc</code> needs a space after the equals sign: <code>start= auto</code>. Without it the command fails.`],[`tip`,`macOS doesn't use systemctl. Its services are managed with <code>launchctl list</code>.`]],
+ qa:[[`How do you make a service start at boot?`,`Linux: sudo systemctl enable name. Windows: Set-Service name -StartupType Automatic, or sc config name start= auto.`]]});
+
+C({id:'svcctl',cat:'admin',lvl:'I',name:'systemctl restart',t:`Start, stop or restart a service`,
+ c:{cmd:`net stop Spooler && net start Spooler`,ps:`Restart-Service Spooler`,sh:`sudo systemctl restart nginx`},
+ out:{cmd:[`The Print Spooler service is stopping.`,`The Print Spooler service was stopped successfully.`,``,`The Print Spooler service is starting.`,`The Print Spooler service was started successfully.`],ps:[],sh:[]},
+ an:[[`sudo`,`admin rights; controlling services needs them`],[`systemctl`,`the service manager`],[`restart`,`stop, then start again`],[`nginx`,`the service's name`]],
+ fl:[[`Start`,`net start Spooler`,`Start-Service Spooler`,`sudo systemctl start nginx`],[`Stop`,`net stop Spooler`,`Stop-Service Spooler`,`sudo systemctl stop nginx`],[`Re-read config, stay running`,`—`,`—`,`sudo systemctl reload nginx`]],
+ no:[[`tip`,`These need an admin shell on Windows and sudo on Linux.`],[`tip`,`After editing a config file, prefer <code>reload</code> where the service supports it: no downtime.`]],
+ qa:[[`restart vs reload?`,`restart stops and starts the process, with a short outage. reload asks the running process to re-read its configuration and keeps serving.`]]});
+
+C({id:'logs',cat:'admin',lvl:'A',name:'journalctl',t:`Read system logs`,
+ c:{cmd:`wevtutil qe System /c:3 /rd:true /f:text`,ps:`Get-WinEvent -LogName System -MaxEvents 3`,sh:`journalctl -n 3`},
+ out:{cmd:[`Event[0]:`,`  Log Name: System`,`  Source: Service Control Manager`,`  Date: 2026-10-01T10:21:07`,`  Level: Information`,`  Description: The Windows Time service entered the running state.`,`…`],
+  ps:[``,`   ProviderName: Service Control Manager`,``,`TimeCreated            Id LevelDisplayName Message`,`-----------            -- ---------------- -------`,`01-10-2026 10:21:07  7036 Information      The Windows Time service entered the running state.`,`…`],
+  sh:[`Oct 01 10:20:55 dev systemd[1]: Started nginx.service - A high performance web server.`,`Oct 01 10:21:03 dev sshd[2190]: Accepted publickey for gk from 10.0.0.8 port 51722`,`Oct 01 10:21:07 dev CRON[2301]: (gk) CMD (/home/gk/backup.sh)`]},
+ an:[[`journalctl`,`read the systemd journal (system logs)`],[`-n 3`,`only the newest 3 entries`]],
+ fl:[[`Follow new entries live`,`—`,`—`,`journalctl -f`],[`One service only`,`—`,`—`,`journalctl -u nginx`],[`Errors only`,`wevtutil qe System /q:"*[System[(Level=2)]]" /c:5 /f:text`,`Get-WinEvent -FilterHashtable @{LogName='System'; Level=2} -MaxEvents 5`,`journalctl -p err`],[`Since the last boot`,`—`,`—`,`journalctl -b`]],
+ no:[[`tip`,`Event Viewer (<code>eventvwr</code>) shows the same Windows logs in a window.`],[`tip`,`Many Linux apps also write to <code>/var/log</code>, for example <code>tail -f /var/log/syslog</code>.`]],
+ qa:[[`A service failed to start. How do you find out why?`,`Linux: systemctl status name, then journalctl -u name -n 50. Windows: check the System log with Get-WinEvent or Event Viewer for the service's errors.`]]});
+
+C({id:'cron',cat:'admin',lvl:'A',name:'crontab',t:`Scheduled tasks`,
+ c:{cmd:`schtasks /query /tn BackupProject`,ps:`Get-ScheduledTask BackupProject`,sh:`crontab -l`},
+ out:{cmd:[``,`Folder: \\`,`TaskName                                 Next Run Time          Status`,`======================================== ====================== ===============`,`BackupProject                            02-10-2026 02:00:00    Ready`],
+  ps:[``,`TaskPath    TaskName        State`,`--------    --------        -----`,`\\           BackupProject   Ready`,``],
+  sh:[`# m h  dom mon dow   command`,`0 2 * * * /home/gk/backup.sh`]},
+ an:[[`crontab`,`the table of scheduled jobs for your user`],[`-l`,`list it`]],
+ fl:[[`Run a script daily at 2 AM`,`schtasks /create /tn BackupProject /tr C:\\scripts\\backup.bat /sc daily /st 02:00`,`Register-ScheduledTask BackupProject -Action (New-ScheduledTaskAction -Execute backup.bat) -Trigger (New-ScheduledTaskTrigger -Daily -At 2am)`,`crontab -e  (then add: 0 2 * * * /home/gk/backup.sh)`],[`List every task`,`schtasks /query`,`Get-ScheduledTask`,`crontab -l`],[`Delete the task`,`schtasks /delete /tn BackupProject`,`Unregister-ScheduledTask BackupProject`,`crontab -e  (delete the line)`]],
+ no:[[`tip`,`Read cron fields as minute, hour, day of month, month, day of week. <code>0 2 * * *</code> means every day at 02:00.`],[`danger`,`<code>crontab -r</code> deletes your whole crontab without asking, and r sits right next to e on the keyboard.`]],
+ qa:[[`What does */15 * * * * mean in cron?`,`Run every 15 minutes: */15 in the minute field means every 15th minute, and * everywhere else means every hour, day and month.`]]});
+
+C({id:'reboot',cat:'admin',lvl:'B',name:'reboot',t:`Restart or shut down`,
+ c:{cmd:`shutdown /r /t 0`,ps:`Restart-Computer`,sh:`sudo reboot`},
+ out:{cmd:[],ps:[],sh:[]},noNext:1,
+ an:[[`sudo`,`admin rights`],[`reboot`,`restart the machine now`]],
+ fl:[[`Shut down now`,`shutdown /s /t 0`,`Stop-Computer`,`sudo shutdown -h now`],[`Restart in 10 minutes`,`shutdown /r /t 600`,`shutdown /r /t 600`,`sudo shutdown -r +10`],[`Cancel a pending shutdown`,`shutdown /a`,`shutdown /a`,`sudo shutdown -c`]],
+ no:[[`warn`,`On a remote server, shutting down means you can't get back in without console access. Check the host name in your prompt first.`]],
+ qa:[[`How do you schedule a reboot for tonight?`,`Linux: sudo shutdown -r 02:00. Windows: shutdown /r /t <seconds>, or a scheduled task.`]]});
+
+C({id:'who',cat:'admin',lvl:'B',name:'who',t:`Who is logged in`,
+ c:{cmd:`query user`,ps:`query user`,sh:`who`},
+ out:{cmd:[` USERNAME              SESSIONNAME        ID  STATE   IDLE TIME  LOGON TIME`,`>gk                    console             1  Active      none   01-10-2026 09:00`],ps:[` USERNAME              SESSIONNAME        ID  STATE   IDLE TIME  LOGON TIME`,`>gk                    console             1  Active      none   01-10-2026 09:00`],sh:[`gk       pts/0        2026-10-01 09:05 (10.0.0.8)`,`ravi     pts/1        2026-10-01 10:12 (10.0.0.14)`]},
+ an:[[`who`,`list users logged in right now`]],
+ fl:[[`Recent logins`,`—`,`—`,`last -n 5`],[`Who is on and what they run`,`—`,`—`,`w`]],
+ no:[[`tip`,`<code>query user</code> isn't available on Windows Home editions.`]],
+ qa:[[`How do you see who logged in to a server recently?`,`last shows past logins with times and source IPs; who and w show who is on now.`]]});
+
+/* additions to Network and System */
+C({id:'trace',cat:'net',lvl:'I',name:'traceroute',t:`Trace the route to a host`,
+ c:{cmd:`tracert google.com`,ps:`Test-NetConnection google.com -TraceRoute`,sh:`traceroute google.com`},
+ out:{cmd:[``,`Tracing route to google.com [142.250.196.14]`,`over a maximum of 30 hops:`,``,`  1     2 ms     1 ms     1 ms  192.168.1.1`,`  2     9 ms     8 ms     9 ms  10.24.0.1`,`  3    17 ms    18 ms    17 ms  142.250.196.14`,``,`Trace complete.`],
+  ps:[``,`ComputerName           : google.com`,`RemoteAddress          : 142.250.196.14`,`PingSucceeded          : True`,`TraceRoute             : 192.168.1.1`,`                         10.24.0.1`,`                         142.250.196.14`,``],
+  sh:[`traceroute to google.com (142.250.196.14), 30 hops max, 60 byte packets`,` 1  192.168.1.1  1.8 ms  1.6 ms  1.5 ms`,` 2  10.24.0.1  9.1 ms  8.7 ms  9.0 ms`,` 3  142.250.196.14  17.4 ms  17.9 ms  17.2 ms`]},
+ an:[[`traceroute`,`list every router (hop) between you and the host`],[`google.com`,`the destination`]],
+ fl:[[`Skip name lookups (faster)`,`tracert -d host`,`—`,`traceroute -n host`],[`Ping and trace combined`,`pathping host`,`—`,`mtr host`]],
+ no:[[`warn`,`Watch the spelling: <code>tracert</code> on Windows, <code>traceroute</code> on Linux and macOS.`],[`tip`,`<code>* * *</code> on a hop usually means that router ignores the probes, not that the path is broken.`]],
+ qa:[[`What does traceroute tell you?`,`Each hop on the path with its response time. Where the times jump, or where replies stop, shows roughly where the problem is.`]]});
+
+C({id:'hw',cat:'sys',lvl:'B',name:'free',t:`Memory and CPU info`,
+ c:{cmd:`systeminfo | findstr /c:"Total Physical Memory" /c:"Processor"`,ps:`Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores`,sh:`free -h`},
+ out:{cmd:[`Processor(s):              1 Processor(s) Installed.`,`Total Physical Memory:     16,084 MB`],ps:[``,`Name                                   NumberOfCores`,`----                                   -------------`,`12th Gen Intel(R) Core(TM) i7-1255U    10`,``],sh:[`               total        used        free      shared  buff/cache   available`,`Mem:           7.7Gi       2.2Gi       3.0Gi       120Mi       2.5Gi       5.2Gi`,`Swap:          2.0Gi          0B       2.0Gi`]},
+ an:[[`free`,`show memory: total, used, free and cache`],[`-h`,`human-readable sizes`]],
+ fl:[[`CPU model and cores`,`echo %NUMBER_OF_PROCESSORS%`,`Get-CimInstance Win32_Processor`,`lscpu`],[`Total and free memory`,`systeminfo | findstr /c:"Memory"`,`Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize, FreePhysicalMemory`,`free -h`],[`On macOS`,`—`,`—`,`sysctl -n machdep.cpu.brand_string`]],
+ no:[[`tip`,`On Linux, look at <b>available</b>, not free. buff/cache is spare memory Linux hands back as soon as a program needs it.`],[`tip`,`<code>wmic</code> used to do this on Windows but is deprecated; <code>Get-CimInstance</code> replaces it.`]],
+ qa:[[`free -h shows almost no free memory. Is the server in trouble?`,`Usually not. Linux uses spare RAM as disk cache. Check the available column and swap usage instead.`]]});
+
+C({id:'uptime',cat:'sys',lvl:'B',name:'uptime',t:`Time since last restart`,
+ c:{cmd:`systeminfo | find "System Boot Time"`,ps:`(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime`,sh:`uptime`},
+ out:{cmd:[`System Boot Time:          01-10-2026, 09:00:12`],ps:[``,`Days              : 0`,`Hours             : 1`,`Minutes           : 22`,`TotalMinutes      : 82.48`,``],sh:[` 10:22:41 up  1:22,  1 user,  load average: 0.31, 0.28, 0.20`]},
+ an:[[`uptime`,`how long the machine has been running, plus users and load`]],
+ fl:[[`Friendly format`,`—`,`Get-Uptime  (PowerShell 7)`,`uptime -p`],[`Exact boot time`,`systeminfo | find "Boot Time"`,`(Get-CimInstance Win32_OperatingSystem).LastBootUpTime`,`uptime -s`]],
+ no:[[`tip`,`When a service suddenly misbehaves, uptime tells you whether the machine rebooted (a crash or an update) since it last worked.`]],
+ qa:[[`Why check uptime during an incident?`,`A recent reboot points to a crash, power issue or patching, and explains processes or mounts that didn't come back.`]]});
+
+C({id:'date',cat:'sys',lvl:'B',name:'date',t:`Show date and time`,
+ c:{cmd:`echo %date% %time%`,ps:`Get-Date`,sh:`date`},
+ out:{cmd:[`01-10-2026 10:22:41.37`],ps:[``,`Thursday, 1 October 2026 10:22:41`,``],sh:[`Thu Oct  1 10:22:41 IST 2026`]},
+ an:[[`date`,`print the current date and time`]],
+ fl:[[`Stamp for file names`,`—`,`Get-Date -Format yyyyMMdd_HHmm`,`date +%Y%m%d_%H%M`],[`In UTC`,`—`,`(Get-Date).ToUniversalTime()`,`date -u`]],
+ no:[[`warn`,`In CMD, <code>date</code> on its own asks you to type a new date. Use <code>date /t</code> or <code>%date%</code>.`],[`warn`,`The format of <code>%date%</code> follows regional settings, so don't parse it in scripts.`]],
+ qa:[[`How do you save a log copy with today's date in the name?`,`Bash: cp app.log app_$(date +%F).log. PowerShell: Copy-Item app.log "app_$(Get-Date -Format yyyy-MM-dd).log".`]]});
+
+/* ---------------- Git in each shell ---------------- */
+C({id:'gclone',cat:'git',lvl:'B',name:'git clone',t:`Copy a repository`,
+ c:{cmd:`git clone https://github.com/gk/shop-app.git`,ps:`git clone https://github.com/gk/shop-app.git`,sh:`git clone https://github.com/gk/shop-app.git`},
+ out:{cmd:[`Cloning into 'shop-app'...`,`remote: Enumerating objects: 128, done.`,`Receiving objects: 100% (128/128), 42.10 KiB | 1.20 MiB/s, done.`,`Resolving deltas: 100% (51/51), done.`],ps:[`Cloning into 'shop-app'...`,`remote: Enumerating objects: 128, done.`,`Receiving objects: 100% (128/128), 42.10 KiB | 1.20 MiB/s, done.`,`Resolving deltas: 100% (51/51), done.`],sh:[`Cloning into 'shop-app'...`,`remote: Enumerating objects: 128, done.`,`Receiving objects: 100% (128/128), 42.10 KiB | 1.20 MiB/s, done.`,`Resolving deltas: 100% (51/51), done.`]},
+ viz:{add:['shop-app/','shop-app/.git/','shop-app/README.md','shop-app/app.py']},
+ an:[[`git`,`the version control program`],[`clone`,`download the whole repository, with its history`],[`https://github.com/gk/shop-app.git`,`where the repository lives`]],
+ fl:[[`Into a folder you name`,`git clone URL myfolder`,`git clone URL myfolder`,`git clone URL myfolder`],[`Latest commit only (fast)`,`git clone --depth 1 URL`,`git clone --depth 1 URL`,`git clone --depth 1 URL`],[`A specific branch`,`git clone -b dev URL`,`git clone -b dev URL`,`git clone -b dev URL`],[`Over SSH`,`git clone git@github.com:gk/shop-app.git`,`git clone git@github.com:gk/shop-app.git`,`git clone git@github.com:gk/shop-app.git`]],
+ no:[[`tip`,`Git is its own program, so its commands are the same in every shell. This category shows where the <b>shell</b> gets in the way: quotes, ^, @{ } and %.`],[`tip`,`Git for Windows also installs Git Bash, a bash shell for Windows.`]],
+ qa:[[`clone vs fork?`,`Clone copies a repository to your machine. Fork copies it to your own account on GitHub or GitLab; you then clone your fork.`]]});
+
+C({id:'gstatus',cat:'git',lvl:'B',name:'git status',t:`See what changed`,
+ c:{cmd:`git status`,ps:`git status`,sh:`git status`},
+ out:{cmd:[`On branch main`,`Changes not staged for commit:`,`        modified:   src/main.py`,``,`Untracked files:`,`        notes.txt`],ps:[`On branch main`,`Changes not staged for commit:`,`        modified:   src/main.py`,``,`Untracked files:`,`        notes.txt`],sh:[`On branch main`,`Changes not staged for commit:`,`        modified:   src/main.py`,``,`Untracked files:`,`        notes.txt`]},
+ an:[[`git`,`version control`],[`status`,`compare your files with the last commit and the staging area`]],
+ fl:[[`Short format`,`git status -s`,`git status -s`,`git status -s`],[`Short, with branch info`,`git status -sb`,`git status -sb`,`git status -sb`]],
+ no:[[`warn`,`On Windows, files can show as modified with no visible change. That's usually line endings (CRLF vs LF); see core.autocrlf.`]],
+ qa:[[`What are the three areas in Git?`,`The working directory (your files), the staging area or index (what the next commit will contain), and the repository (committed history). git add moves changes to staging; git commit records them.`]]});
+
+C({id:'gcommit',cat:'git',lvl:'B',name:'git commit',t:`Commit with a message`,
+ c:{cmd:`git commit -am "Fix login bug"`,ps:`git commit -am "Fix login bug"`,sh:`git commit -am "Fix login bug"`},
+ out:{cmd:[`[main 3f9c2ab] Fix login bug`,` 1 file changed, 4 insertions(+), 1 deletion(-)`],ps:[`[main 3f9c2ab] Fix login bug`,` 1 file changed, 4 insertions(+), 1 deletion(-)`],sh:[`[main 3f9c2ab] Fix login bug`,` 1 file changed, 4 insertions(+), 1 deletion(-)`]},
+ an:[[`git commit`,`record staged changes as a new commit`],[`-am`,`-a stages every tracked file you changed; -m means the message follows`],[`"Fix login bug"`,`the message, quoted because it has spaces`]],
+ fl:[[`Message in single quotes`,`—  (CMD has no single quotes)`,`git commit -m 'Fix login bug'`,`git commit -m 'Fix login bug'`],[`Message containing $`,`git commit -m "Price $5"`,`git commit -m 'Price $5'`,`git commit -m 'Price $5'`],[`Title plus details`,`git commit -m "Title" -m "Details"`,`git commit -m "Title" -m "Details"`,`git commit -m "Title" -m "Details"`],[`Fix the last commit`,`git commit --amend`,`git commit --amend`,`git commit --amend`]],
+ no:[[`warn`,`CMD doesn't treat ' as a quote. <code>git commit -m 'Fix login bug'</code> fails with "pathspec 'login' did not match". Use double quotes.`],[`warn`,`In PowerShell and bash, double quotes expand <code>$</code>: "Price $5" is committed as "Price ". Use single quotes there.`]],
+ qa:[[`git commit -a vs git add?`,`-a stages tracked files that were modified or deleted. New, untracked files still need git add first.`]]});
+
+C({id:'glog',cat:'git',lvl:'B',name:'git log',t:`View commit history`,
+ c:{cmd:`git log --oneline -3`,ps:`git log --oneline -3`,sh:`git log --oneline -3`},
+ out:{cmd:[`3f9c2ab (HEAD -> main) Fix login bug`,`a81d04e Add payment retry`,`5c2e7f1 Initial commit`],ps:[`3f9c2ab (HEAD -> main) Fix login bug`,`a81d04e Add payment retry`,`5c2e7f1 Initial commit`],sh:[`3f9c2ab (HEAD -> main) Fix login bug`,`a81d04e Add payment retry`,`5c2e7f1 Initial commit`]},
+ an:[[`git log`,`show the commit history`],[`--oneline`,`one short line per commit`],[`-3`,`only the last three`]],
+ fl:[[`Your own format`,`git log --format="%h %an %s"`,`git log --format="%h %an %s"`,`git log --format="%h %an %s"`],[`Same, inside a .bat file`,`git log --format="%%h %%an %%s"`,`—`,`—`],[`Branch graph`,`git log --oneline --graph --all`,`git log --oneline --graph --all`,`git log --oneline --graph --all`],[`By one author`,`git log --author="Ravi"`,`git log --author="Ravi"`,`git log --author="Ravi"`]],
+ no:[[`warn`,`In .bat scripts, every <code>%</code> must be doubled (<code>%%h</code>), or CMD treats it as a variable.`],[`tip`,`Long logs open in a pager in every shell. Press q to leave.`]],
+ qa:[[`How do you find who last changed a line?`,`git blame file shows the commit and author for every line. git log -p file shows the full history of changes to it.`]]});
+
+C({id:'gcaret',cat:'git',lvl:'I',name:'HEAD^',t:`Refer to the previous commit`,
+ c:{cmd:`git diff HEAD~1`,ps:`git diff HEAD^`,sh:`git diff HEAD^`},
+ out:{cmd:[`diff --git a/src/main.py b/src/main.py`,`@@ -10,7 +10,7 @@`,`-    retries = 1`,`+    retries = 3`],ps:[`diff --git a/src/main.py b/src/main.py`,`@@ -10,7 +10,7 @@`,`-    retries = 1`,`+    retries = 3`],sh:[`diff --git a/src/main.py b/src/main.py`,`@@ -10,7 +10,7 @@`,`-    retries = 1`,`+    retries = 3`]},
+ an:[[`git diff`,`show line-by-line changes`],[`HEAD^`,`the commit before the current one (its parent)`]],
+ fl:[[`Show the previous commit`,`git show HEAD~1`,`git show HEAD^`,`git show HEAD^`],[`Two commits back`,`git show HEAD~2`,`git show HEAD~2`,`git show HEAD~2`],[`Undo last commit, keep changes`,`git reset --soft HEAD~1`,`git reset --soft HEAD~1`,`git reset --soft HEAD~1`]],
+ no:[[`warn`,`In CMD, <code>^</code> is the escape character, so <code>HEAD^</code> loses its ^ or prompts "More?". Use <code>HEAD~1</code>, which works in every shell.`],[`tip`,`Some zsh setups treat ^ as a pattern too. <code>HEAD~1</code> avoids that as well.`]],
+ qa:[[`HEAD~ vs HEAD^?`,`For a normal commit both mean the parent. ~N walks N generations back along first parents; ^N picks the Nth parent of a merge commit.`]]});
+
+C({id:'gpush',cat:'git',lvl:'I',name:'git push',t:`Push and track a branch`,
+ c:{cmd:`git push -u origin main`,ps:`git push -u origin main`,sh:`git push -u origin main`},
+ out:{cmd:[`To github.com:gk/shop-app.git`,`   a81d04e..3f9c2ab  main -> main`,`branch 'main' set up to track 'origin/main'.`],ps:[`To github.com:gk/shop-app.git`,`   a81d04e..3f9c2ab  main -> main`,`branch 'main' set up to track 'origin/main'.`],sh:[`To github.com:gk/shop-app.git`,`   a81d04e..3f9c2ab  main -> main`,`branch 'main' set up to track 'origin/main'.`]},
+ an:[[`git push`,`send your commits to the remote`],[`-u`,`remember origin/main as this branch's upstream`],[`origin`,`the remote's name`],[`main`,`the branch`]],
+ fl:[[`Commits not pushed yet`,`git log @{u}..`,`git log '@{u}..'`,`git log @{u}..`],[`Get the latest from remote`,`git pull`,`git pull`,`git pull`],[`Overwrite remote safely`,`git push --force-with-lease`,`git push --force-with-lease`,`git push --force-with-lease`]],
+ no:[[`warn`,`In PowerShell, <code>@{</code> starts a hashtable, so <code>@{u}</code> must be quoted: <code>'@{u}'</code>.`],[`danger`,`<code>git push --force</code> overwrites the remote branch and can wipe teammates' commits. Use <code>--force-with-lease</code>.`]],
+ qa:[[`git fetch vs git pull?`,`fetch downloads new commits without touching your branch. pull is fetch plus merge (or rebase) into your branch.`]]});
+
+C({id:'gbranch',cat:'git',lvl:'B',name:'git switch',t:`Create and switch branches`,
+ c:{cmd:`git switch -c feature/login`,ps:`git switch -c feature/login`,sh:`git switch -c feature/login`},
+ out:{cmd:[`Switched to a new branch 'feature/login'`],ps:[`Switched to a new branch 'feature/login'`],sh:[`Switched to a new branch 'feature/login'`]},
+ an:[[`git switch`,`move to another branch`],[`-c`,`create it first`],[`feature/login`,`the new branch's name`]],
+ fl:[[`List branches`,`git branch -a`,`git branch -a`,`git branch -a`],[`Older equivalent`,`git checkout -b feature/login`,`git checkout -b feature/login`,`git checkout -b feature/login`],[`Back to previous branch`,`git switch -`,`git switch -`,`git switch -`],[`Delete a merged branch`,`git branch -d feature/login`,`git branch -d feature/login`,`git branch -d feature/login`]],
+ no:[[`tip`,`<code>git switch -</code> jumps back to the branch you were on, like <code>cd -</code> does for folders.`]],
+ qa:[[`merge vs rebase?`,`Merge joins two histories with a merge commit. Rebase replays your commits on top of the other branch for a straight history. Don't rebase commits others have already pulled.`]]});
+
+C({id:'gstash',cat:'git',lvl:'I',name:'git stash',t:`Shelve unfinished work`,
+ c:{cmd:`git stash`,ps:`git stash`,sh:`git stash`},
+ out:{cmd:[`Saved working directory and index state WIP on main: 3f9c2ab Fix login bug`],ps:[`Saved working directory and index state WIP on main: 3f9c2ab Fix login bug`],sh:[`Saved working directory and index state WIP on main: 3f9c2ab Fix login bug`]},
+ an:[[`git stash`,`put uncommitted changes aside and clean the working directory`]],
+ fl:[[`Bring the changes back`,`git stash pop`,`git stash pop`,`git stash pop`],[`List stashes`,`git stash list`,`git stash list`,`git stash list`],[`Include new files`,`git stash -u`,`git stash -u`,`git stash -u`],[`Apply a specific stash`,`git stash apply stash@{1}`,`git stash apply 'stash@{1}'`,`git stash apply stash@{1}`]],
+ no:[[`warn`,`Same PowerShell trap as <code>@{u}</code>: quote <code>'stash@{1}'</code>.`]],
+ qa:[[`When would you use git stash?`,`To switch branches or pull without committing half-done work, then bring it back with git stash pop.`]]});
+
+C({id:'gcrlf',cat:'git',lvl:'A',name:'core.autocrlf',t:`Fix line-ending problems`,
+ c:{cmd:`git config --global core.autocrlf true`,ps:`git config --global core.autocrlf true`,sh:`git config --global core.autocrlf input`},
+ out:{cmd:[],ps:[],sh:[]},
+ an:[[`git config`,`change a Git setting`],[`--global`,`for all your repositories`],[`core.autocrlf`,`how Git converts line endings`],[`input`,`turn CRLF into LF when committing; leave files alone on checkout`]],
+ fl:[[`Check the current value`,`git config core.autocrlf`,`git config core.autocrlf`,`git config core.autocrlf`],[`Team-wide rule (recommended)`,`.gitattributes: * text=auto`,`.gitattributes: * text=auto`,`.gitattributes: * text=auto`],[`Always LF for shell scripts`,`.gitattributes: *.sh text eol=lf`,`.gitattributes: *.sh text eol=lf`,`.gitattributes: *.sh text eol=lf`]],
+ no:[[`tip`,`A <code>.gitattributes</code> file in the repository overrides everyone's personal setting, so the whole team gets the same result.`],[`warn`,`A shell script committed with CRLF fails on Linux with <code>bad interpreter: /bin/bash^M</code>.`]],
+ qa:[[`Why do files show as changed when nobody edited them?`,`Usually line endings (CRLF vs LF) or file permission bits differ. Check core.autocrlf, .gitattributes and core.fileMode.`]]});
+
+/* ---------------- Python & data tools ---------------- */
+C({id:'pyver',cat:'py',lvl:'B',name:'python3 --version',t:`Check Python version`,
+ c:{cmd:`py --version`,ps:`py --version`,sh:`python3 --version`},
+ out:{cmd:[`Python 3.12.4`],ps:[`Python 3.12.4`],sh:[`Python 3.12.3`]},
+ an:[[`python3`,`on Linux and macOS, python may be missing or point to Python 2; python3 is explicit`],[`--version`,`print the version and exit`]],
+ fl:[[`List installed versions`,`py -0`,`py -0`,`ls /usr/bin/python3*`],[`Run a specific version`,`py -3.11 app.py`,`py -3.11 app.py`,`python3.11 app.py`]],
+ no:[[`tip`,`<code>py</code> is the Python launcher for Windows. It finds your installed versions, even when python isn't on PATH.`],[`warn`,`On Windows, typing <code>python</code> without Python installed opens the Microsoft Store instead of showing an error.`]],
+ qa:[[`python vs python3?`,`On many Linux and macOS systems, python is absent or is Python 2, so python3 is used. Inside an activated venv, both point to the venv's Python.`]]});
+
+C({id:'venv',cat:'py',lvl:'B',name:'python -m venv',t:`Create a virtual environment`,
+ c:{cmd:`py -m venv .venv`,ps:`py -m venv .venv`,sh:`python3 -m venv .venv`},
+ out:{cmd:[],ps:[],sh:[]},
+ viz:{add:['.venv/']},
+ an:[[`python3`,`the Python to base the environment on`],[`-m venv`,`run Python's built-in venv module`],[`.venv`,`the folder to create`]],
+ fl:[[`With a specific version`,`py -3.11 -m venv .venv`,`py -3.11 -m venv .venv`,`python3.11 -m venv .venv`],[`Delete the environment`,`rmdir /s /q .venv`,`Remove-Item .venv -Recurse -Force`,`rm -rf .venv`]],
+ no:[[`tip`,`Add <code>.venv/</code> to .gitignore and commit requirements.txt instead.`],[`tip`,`On Ubuntu, if this fails, install the module: <code>sudo apt install python3-venv</code>.`]],
+ qa:[[`Why use a virtual environment?`,`Each project gets its own packages and versions, so projects don't break each other and the system Python stays clean.`]]});
+
+C({id:'activate',cat:'py',lvl:'B',name:'source activate',t:`Activate the virtual environment`,
+ c:{cmd:`.venv\\Scripts\\activate.bat`,ps:`.\\.venv\\Scripts\\Activate.ps1`,sh:`source .venv/bin/activate`},
+ out:{cmd:[`(.venv) C:\\Users\\gk\\project>`],ps:[`(.venv) PS C:\\Users\\gk\\project>`],sh:[`(.venv) gk@dev:~/project$`]},noNext:1,
+ an:[[`source`,`run the script inside the current shell, so it can change your PATH`],[`.venv/bin/activate`,`the activation script venv created`]],
+ fl:[[`Leave the environment`,`deactivate`,`deactivate`,`deactivate`],[`If scripts are blocked`,`—`,`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`,`—`],[`In Git Bash on Windows`,`—`,`—`,`source .venv/Scripts/activate`]],
+ no:[[`warn`,`PowerShell may say "running scripts is disabled on this system". Run <code>Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</code> once.`],[`warn`,`In Git Bash on Windows the folder is <code>Scripts</code>, not <code>bin</code>.`],[`tip`,`The <code>(.venv)</code> in the prompt is how you know it worked.`]],
+ qa:[[`Why must activate be "sourced"?`,`A script normally runs in a child process, and its PATH changes vanish when it exits. source runs it in your current shell, so the change sticks.`]]});
+
+C({id:'whichpy',cat:'py',lvl:'I',name:'which python',t:`Which Python is running?`,
+ c:{cmd:`where python`,ps:`Get-Command python`,sh:`which python`},
+ out:{cmd:[`C:\\Users\\gk\\project\\.venv\\Scripts\\python.exe`,`C:\\Users\\gk\\AppData\\Local\\Programs\\Python\\Python312\\python.exe`],ps:[``,`CommandType     Name          Version    Source`,`-----------     ----          -------    ------`,`Application     python.exe    3.12.4     C:\\Users\\gk\\project\\.venv\\Scripts\\python.exe`,``],sh:[`/home/gk/project/.venv/bin/python`]},
+ an:[[`which`,`show the file that runs when you type the command`],[`python`,`the command to look up`]],
+ fl:[[`Ask Python itself`,`python -c "import sys; print(sys.executable)"`,`python -c "import sys; print(sys.executable)"`,`python -c "import sys; print(sys.executable)"`],[`Which pip`,`where pip`,`Get-Command pip`,`which pip`],[`Install into this exact Python`,`python -m pip install requests`,`python -m pip install requests`,`python -m pip install requests`]],
+ no:[[`tip`,`<code>python -m pip</code> always installs into the Python you're running, which avoids the "installed but ModuleNotFoundError" trap.`]],
+ qa:[[`A package is installed but you get ModuleNotFoundError. Why?`,`pip and python point to different installations. Check with which or where, and install with python -m pip.`]]});
+
+C({id:'pipinstall',cat:'py',lvl:'B',name:'pip install',t:`Install a package (with version)`,
+ c:{cmd:`pip install "pandas>=2.2"`,ps:`pip install "pandas>=2.2"`,sh:`pip install "pandas>=2.2"`},
+ out:{cmd:[`Collecting pandas>=2.2`,`  Downloading pandas-2.2.3-cp312-cp312-win_amd64.whl (11.6 MB)`,`Successfully installed numpy-2.1.1 pandas-2.2.3`],ps:[`Collecting pandas>=2.2`,`  Downloading pandas-2.2.3-cp312-cp312-win_amd64.whl (11.6 MB)`,`Successfully installed numpy-2.1.1 pandas-2.2.3`],sh:[`Collecting pandas>=2.2`,`  Downloading pandas-2.2.3-cp312-cp312-manylinux_2_17_x86_64.whl (12.7 MB)`,`Successfully installed numpy-2.1.1 pandas-2.2.3`]},
+ an:[[`pip install`,`download and install a package`],[`"pandas>=2.2"`,`package plus version rule, quoted so the shell doesn't treat > as a redirect`]],
+ fl:[[`Exact version`,`pip install pandas==2.2.3`,`pip install pandas==2.2.3`,`pip install pandas==2.2.3`],[`Everything in a file`,`pip install -r requirements.txt`,`pip install -r requirements.txt`,`pip install -r requirements.txt`],[`Upgrade`,`pip install -U pandas`,`pip install -U pandas`,`pip install -U pandas`],[`With extras`,`pip install "fastapi[all]"`,`pip install "fastapi[all]"`,`pip install "fastapi[all]"`]],
+ no:[[`danger`,`Unquoted, <code>pip install pandas&gt;=2.2</code> is read as "install pandas, and send the output to a file named =2.2". You get the wrong version and a stray file.`],[`warn`,`zsh (macOS) also needs quotes around extras: <code>"fastapi[all]"</code>, because [ ] are pattern characters there.`]],
+ qa:[[`Why quote version specifiers in pip install?`,`> and < are redirection operators in every shell, and [ ] are wildcard characters in zsh. Quotes pass them to pip unchanged.`]]});
+
+C({id:'freeze',cat:'py',lvl:'I',name:'pip freeze',t:`Save requirements.txt`,
+ c:{cmd:`pip freeze > requirements.txt`,ps:`pip freeze | Out-File requirements.txt -Encoding utf8`,sh:`pip freeze > requirements.txt`},
+ out:{cmd:[],ps:[],sh:[]},
+ viz:{add:['requirements.txt']},
+ an:[[`pip freeze`,`list installed packages with exact versions`],[`>`,`save the list to a file`],[`requirements.txt`,`the conventional file name`]],
+ fl:[[`Recreate the environment`,`pip install -r requirements.txt`,`pip install -r requirements.txt`,`pip install -r requirements.txt`],[`Just look, don't save`,`pip freeze`,`pip freeze`,`pip freeze`]],
+ no:[[`warn`,`Windows PowerShell 5.1's <code>&gt;</code> writes UTF-16, and pip can't read that back. Use <code>Out-File -Encoding utf8</code>, or PowerShell 7.`],[`tip`,`freeze lists everything in the environment, so run it with the project's venv activated.`]],
+ qa:[[`requirements.txt vs pyproject.toml?`,`requirements.txt pins the exact packages of one environment. pyproject.toml describes the project itself: its name, version and dependency ranges.`]]});
+
+C({id:'conda',cat:'py',lvl:'I',name:'conda create',t:`Create a conda environment`,
+ c:{cmd:`conda create -n shop python=3.11 -y`,ps:`conda create -n shop python=3.11 -y`,sh:`conda create -n shop python=3.11 -y`},
+ out:{cmd:[`Channels:`,` - defaults`,`Solving environment: done`,`#`,`# To activate this environment, use`,`#     $ conda activate shop`],ps:[`Channels:`,` - defaults`,`Solving environment: done`,`#`,`# To activate this environment, use`,`#     $ conda activate shop`],sh:[`Channels:`,` - defaults`,`Solving environment: done`,`#`,`# To activate this environment, use`,`#     $ conda activate shop`]},
+ an:[[`conda create`,`make a new environment`],[`-n shop`,`its name`],[`python=3.11`,`the Python version to put in it`],[`-y`,`don't ask for confirmation`]],
+ fl:[[`List environments`,`conda env list`,`conda env list`,`conda env list`],[`Export to a file`,`conda env export > environment.yml`,`conda env export | Out-File environment.yml -Encoding utf8`,`conda env export > environment.yml`],[`Recreate from the file`,`conda env create -f environment.yml`,`conda env create -f environment.yml`,`conda env create -f environment.yml`],[`Delete it`,`conda env remove -n shop`,`conda env remove -n shop`,`conda env remove -n shop`]],
+ no:[[`tip`,`conda commands are the same in every shell. Only activation needs per-shell setup (next command).`]],
+ qa:[[`conda vs venv?`,`venv is built into Python and manages Python packages only. conda installs its own Python versions and non-Python libraries too, such as CUDA or GDAL.`]]});
+
+C({id:'condaact',cat:'py',lvl:'I',name:'conda activate',t:`Activate a conda environment`,
+ c:{cmd:`conda activate shop`,ps:`conda activate shop`,sh:`conda activate shop`},
+ out:{cmd:[`(shop) C:\\Users\\gk\\project>`],ps:[`(shop) PS C:\\Users\\gk\\project>`],sh:[`(shop) gk@dev:~/project$`]},noNext:1,
+ an:[[`conda activate`,`switch this shell to the environment`],[`shop`,`the environment's name`]],
+ fl:[[`One-time setup for this shell`,`conda init cmd.exe`,`conda init powershell`,`conda init bash  (or conda init zsh)`],[`Leave the environment`,`conda deactivate`,`conda deactivate`,`conda deactivate`],[`Don't auto-activate base`,`conda config --set auto_activate_base false`,`conda config --set auto_activate_base false`,`conda config --set auto_activate_base false`]],
+ no:[[`warn`,`"Your shell has not been properly configured" or "conda: command not found" means <code>conda init</code> hasn't been run for <b>this</b> shell. Run it once, then open a new terminal.`],[`tip`,`Anaconda Prompt on Windows is just CMD with conda already set up.`]],
+ qa:[[`conda activate works in Anaconda Prompt but not in PowerShell. Why?`,`conda init installs a hook per shell. CMD, PowerShell, bash and zsh each need their own conda init.`]]});
+
+C({id:'streamlit',cat:'py',lvl:'B',name:'streamlit run',t:`Run a Streamlit app`,
+ c:{cmd:`streamlit run app.py --server.port 8502`,ps:`streamlit run app.py --server.port 8502`,sh:`streamlit run app.py --server.port 8502`},
+ out:{cmd:[``,`  You can now view your Streamlit app in your browser.`,``,`  Local URL: http://localhost:8502`,`  Network URL: http://192.168.1.24:8502`],ps:[``,`  You can now view your Streamlit app in your browser.`,``,`  Local URL: http://localhost:8502`,`  Network URL: http://192.168.1.24:8502`],sh:[``,`  You can now view your Streamlit app in your browser.`,``,`  Local URL: http://localhost:8502`,`  Network URL: http://192.168.1.24:8502`]},noNext:1,
+ an:[[`streamlit run`,`start the app's web server`],[`app.py`,`your Streamlit script`],[`--server.port 8502`,`use port 8502 instead of the default 8501`]],
+ fl:[[`With an API key for this run`,`set "OPENAI_API_KEY=sk-..." && streamlit run app.py`,`$env:OPENAI_API_KEY="sk-..."; streamlit run app.py`,`OPENAI_API_KEY=sk-... streamlit run app.py`],[`"streamlit" not found`,`python -m streamlit run app.py`,`python -m streamlit run app.py`,`python -m streamlit run app.py`],[`Don't open a browser`,`streamlit run app.py --server.headless true`,`streamlit run app.py --server.headless true`,`streamlit run app.py --server.headless true`],[`Stop the app`,`Ctrl+C`,`Ctrl+C`,`Ctrl+C`]],
+ no:[[`warn`,`In CMD, <code>set KEY=x &amp;&amp; next</code> keeps the space before &amp;&amp; in the value. Write <code>set "KEY=x" &amp;&amp; next</code>.`],[`tip`,`For Streamlit secrets, <code>.streamlit/secrets.toml</code> is tidier than variables. Add it to .gitignore.`]],
+ qa:[[`"Port 8501 is already in use". What do you do?`,`Run on another port with --server.port, or find the old process with netstat / ss and stop it.`]]});
+
+C({id:'jupyter',cat:'py',lvl:'B',name:'jupyter lab',t:`Start Jupyter`,
+ c:{cmd:`jupyter lab`,ps:`jupyter lab`,sh:`jupyter lab`},
+ out:{cmd:[`[I 10:22:41 ServerApp] Jupyter Server 2.14.2 is running at:`,`[I 10:22:41 ServerApp] http://localhost:8888/lab?token=3f9c…`,`[I 10:22:41 ServerApp] Use Control-C to stop this server`],ps:[`[I 10:22:41 ServerApp] Jupyter Server 2.14.2 is running at:`,`[I 10:22:41 ServerApp] http://localhost:8888/lab?token=3f9c…`,`[I 10:22:41 ServerApp] Use Control-C to stop this server`],sh:[`[I 10:22:41 ServerApp] Jupyter Server 2.14.2 is running at:`,`[I 10:22:41 ServerApp] http://localhost:8888/lab?token=3f9c…`,`[I 10:22:41 ServerApp] Use Control-C to stop this server`]},noNext:1,
+ an:[[`jupyter lab`,`start JupyterLab and open it in the browser`]],
+ fl:[[`Classic notebook`,`jupyter notebook`,`jupyter notebook`,`jupyter notebook`],[`Another port`,`jupyter lab --port 8890`,`jupyter lab --port 8890`,`jupyter lab --port 8890`],[`Start in a folder`,`jupyter lab --notebook-dir=notebooks`,`jupyter lab --notebook-dir=notebooks`,`jupyter lab --notebook-dir=notebooks`],[`Running servers and tokens`,`jupyter server list`,`jupyter server list`,`jupyter server list`]],
+ no:[[`tip`,`Same in every shell. Start it with your venv or conda environment active, so notebooks see your packages.`]],
+ qa:[[`Your notebook can't import a package installed in the venv. Why?`,`The notebook's kernel is a different Python. Register the venv as a kernel and select it (see the next command).`]]});
+
+C({id:'kernel',cat:'py',lvl:'A',name:'ipykernel install',t:`Use your environment in Jupyter`,
+ c:{cmd:`python -m ipykernel install --user --name shop`,ps:`python -m ipykernel install --user --name shop`,sh:`python -m ipykernel install --user --name shop`},
+ out:{cmd:[`Installed kernelspec shop in C:\\Users\\gk\\AppData\\Roaming\\jupyter\\kernels\\shop`],ps:[`Installed kernelspec shop in C:\\Users\\gk\\AppData\\Roaming\\jupyter\\kernels\\shop`],sh:[`Installed kernelspec shop in /home/gk/.local/share/jupyter/kernels/shop`]},
+ an:[[`python -m ipykernel`,`run the kernel installer from the environment's own Python`],[`install`,`register it with Jupyter`],[`--user`,`for your account only; no admin needed`],[`--name shop`,`the name you'll pick in Jupyter`]],
+ fl:[[`List kernels`,`jupyter kernelspec list`,`jupyter kernelspec list`,`jupyter kernelspec list`],[`Remove a kernel`,`jupyter kernelspec uninstall shop`,`jupyter kernelspec uninstall shop`,`jupyter kernelspec uninstall shop`],[`Install from inside a notebook`,`%pip install pandas`,`%pip install pandas`,`%pip install pandas`]],
+ no:[[`tip`,`Activate the environment first and install ipykernel in it (<code>pip install ipykernel</code>).`],[`tip`,`In notebooks, use <code>%pip</code> rather than <code>!pip</code>: %pip always installs into the running kernel.`]],
+ qa:[[`%pip vs !pip in a notebook?`,`!pip runs whatever pip is first on the server's PATH. %pip installs into the exact Python the kernel is using.`]]});
+
+/* keep commands in sidebar order so Prev / Next follow the categories */
+{ const ci=Object.fromEntries(CATS.map((c,i)=>[c.id,i])); FN.sort((a,b)=>ci[a.cat]-ci[b.cat]); }
+
+/* =========================================================
+   APP
+   ========================================================= */
+const $ = id => document.getElementById(id);
+const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const SH=['cmd','ps','sh'];
+const SHN={cmd:'CMD',ps:'PowerShell',sh:'Bash / zsh'};
+const LVL={B:'Basic',I:'Intermediate',A:'Advanced'};
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const store={get(k,d){try{const v=localStorage.getItem('vsh.'+k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem('vsh.'+k,JSON.stringify(v));}catch(e){}}};
+
+/* tag overrides for the folder visual */
+const TAGS={gclone:['cloned'],venv:['created'],freeze:['created'],mv:['moved here','moved away'],cp:['copy'],ln:['link'],redirect:['created'],stderr:['created'],tee:['created'],tar:['archive'],zip:['archive']};
+const byId={}; FN.forEach(e=>byId[e.id]=e);
+
+/* ---------- Theme ---------- */
+const SUN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>';
+const MOON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z"/></svg>';
+const PLAY='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>';
+const PREV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>';
+const NEXT='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
+const ARROW='<svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg>';
+const I_DIR='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2 2h8.4A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/></svg>';
+const I_FILE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>';
+const I_LINK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>';
+
+let theme = store.get('theme', matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+function applyTheme(t){
+  document.documentElement.dataset.theme=t;
+  $('themeBtn').innerHTML = t==='dark'?SUN:MOON;
+  $('themeBtn').setAttribute('aria-label', t==='dark'?'Switch to light theme':'Switch to dark theme');
+}
+$('themeBtn').addEventListener('click',()=>{ theme = theme==='dark'?'light':'dark'; store.set('theme',theme); applyTheme(theme); });
+applyTheme(theme);
+
+/* ---------- Shell switch ---------- */
+let show = {cmd:true,ps:true,sh:true}; /* always starts with all three on; not remembered across refresh */
+const vis = () => SH.filter(s=>show[s]);
+function syncShellButtons(){ document.querySelectorAll('.shells button').forEach(b=>b.setAttribute('aria-pressed',show[b.dataset.sh]?'true':'false')); }
+document.querySelectorAll('.shells button').forEach(b=>b.addEventListener('click',()=>{
+  const s=b.dataset.sh;
+  if(show[s] && vis().length===1){ toast('At least one shell stays on'); return; }
+  show[s]=!show[s]; syncShellButtons(); route(true);
+}));
+syncShellButtons();
+
+/* ---------- Toast & copy ---------- */
+let toastT;
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),1500); }
+function copy(text){
+  const done=()=>toast('Copied: '+(text.length>48?text.slice(0,48)+'…':text));
+  const fallback=()=>{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy'); done();}catch(e){toast('Select the text and press Ctrl+C');} ta.remove(); };
+  if(navigator.clipboard && window.isSecureContext){ navigator.clipboard.writeText(text).then(done,fallback); } else fallback();
+}
+document.addEventListener('click',ev=>{ const c=ev.target.closest('[data-copy]'); if(c){ copy(c.dataset.copy); } });
+
+/* ---------- Sidebar ---------- */
+const CHEV='<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
+function buildNav(){
+  let h='<div class="group-label">Guides</div>';
+  GUIDES.forEach(g=>{ h+=`<div class="cat" data-guide="${g.id}"><button class="sec gp" data-go="${g.id}"><span class="sec-text"><b>${esc(g.name)}</b>${esc(g.sub)}</span></button></div>`; });
+  h+='<div class="group-label">Commands</div>';
+  CATS.forEach(c=>{
+    const items=FN.filter(e=>e.cat===c.id);
+    h+=`<div class="cat" data-cat="${c.id}"><button class="sec" aria-expanded="false"><span class="sec-text"><b>${esc(c.name)}</b>${esc(c.sub)}</span><span class="count">${items.length}</span>${CHEV}</button><ul class="items" hidden>`;
+    items.forEach(e=>{ h+=`<li data-id="${e.id}"><button data-go="${e.id}"><code>${esc(e.name)}</code><span class="pt">${esc(e.t)}</span><span class="via" hidden></span></button></li>`; });
+    h+='</ul></div>';
+  });
+  $('nav').innerHTML=h;
+  $('totalHint').textContent=FN.length+' commands';
+  $('nav').querySelectorAll('.sec:not(.gp)').forEach(b=>b.addEventListener('click',()=>{
+    const open=b.getAttribute('aria-expanded')==='true';
+    if(!open) collapseAll();
+    b.setAttribute('aria-expanded',open?'false':'true'); b.nextElementSibling.hidden=open;
+  }));
+}
+document.addEventListener('click',ev=>{ const g=ev.target.closest('[data-go]'); if(g){ ev.preventDefault(); go(g.dataset.go); } });
+function collapseAll(){ $('nav').querySelectorAll('.cat[data-cat] .sec').forEach(s=>{ s.setAttribute('aria-expanded','false'); s.nextElementSibling.hidden=true; }); }
+function markNav(id){
+  $('nav').querySelectorAll('[aria-current]').forEach(x=>x.removeAttribute('aria-current'));
+  const b=$('nav').querySelector(`[data-go="${id}"]`);
+  if(!b || b.classList.contains('gp')){ if(!$('search').value.trim()) collapseAll(); if(b) b.setAttribute('aria-current','true'); return; }
+  b.setAttribute('aria-current','true');
+  const cat=b.closest('.cat[data-cat]');
+  if(cat && !$('search').value.trim()){
+    $('nav').querySelectorAll('.cat[data-cat]').forEach(c=>{ const s=c.querySelector('.sec'); const on=c===cat; s.setAttribute('aria-expanded',on?'true':'false'); s.nextElementSibling.hidden=!on; });
+    b.scrollIntoView({block:'nearest'});
+  }
+}
+
+/* ---------- Search: any command, any shell ---------- */
+function matchInfo(e,q){
+  const has=t=>t && t.toLowerCase().includes(q);
+  if(has(e.name)||has(e.id)||has(e.c.sh)||has(e.t)) return {ok:true};
+  if(has(e.c.cmd)) return {ok:true,via:'CMD: '+e.c.cmd};
+  if(has(e.c.ps)) return {ok:true,via:'PowerShell: '+e.c.ps};
+  if(has(e.al)) return {ok:true,via:'PowerShell alias: '+e.al};
+  for(const f of (e.fl||[])){ for(let i=1;i<4;i++){ if(has(f[i])) return {ok:true,via:[null,'CMD','PowerShell','Bash'][i]+': '+f[i]}; } }
+  return {ok:false};
+}
+function runSearch(){
+  const q=$('search').value.trim().toLowerCase(); let any=false;
+  $('nav').querySelectorAll('.cat').forEach(cat=>{
+    if(cat.dataset.guide){ const g=GUIDES.find(x=>x.id===cat.dataset.guide); const ok=!q||g.name.toLowerCase().includes(q); cat.hidden=!ok; any=any||(ok&&!!q); return; }
+    let n=0;
+    cat.querySelectorAll('li').forEach(li=>{
+      const e=byId[li.dataset.id]; const m=q?matchInfo(e,q):{ok:true};
+      li.hidden=!m.ok; if(m.ok) n++;
+      const v=li.querySelector('.via'); v.hidden=!m.via; v.textContent=m.via||'';
+    });
+    cat.hidden=q && !n; if(q&&n) any=true;
+    const s=cat.querySelector('.sec'); if(q){ s.setAttribute('aria-expanded',n?'true':'false'); s.nextElementSibling.hidden=!n; }
+  });
+  $('nomatch').hidden=!q||any;
+  $('nav').querySelectorAll('.group-label').forEach(g=>g.hidden=!!q);
+  if(!q){ $('nav').querySelectorAll('li').forEach(li=>li.hidden=false); markNav(cur); }
+}
+$('search').addEventListener('input',runSearch);
+$('search').addEventListener('keydown',ev=>{
+  if(ev.key==='Enter'){ const b=[...$('nav').querySelectorAll('li:not([hidden]) [data-go]')].find(x=>!x.closest('.cat').hidden); if(b){ go(b.dataset.go); } }
+  if(ev.key==='Escape'){ $('search').value=''; runSearch(); $('search').blur(); }
+});
+document.addEventListener('keydown',ev=>{
+  const typing=/INPUT|TEXTAREA/.test(document.activeElement.tagName);
+  if(ev.key==='/' && !typing){ ev.preventDefault(); $('search').focus(); return; }
+  if(typing||ev.metaKey||ev.ctrlKey||ev.altKey) return;
+  if(byId[cur]){
+    if(ev.key==='ArrowRight'){ step(1); } else if(ev.key==='ArrowLeft'){ step(-1); } else if(ev.key==='p'){ play(); }
+  }
+});
+function step(d){ const i=FN.findIndex(e=>e.id===cur); const n=FN[(i+d+FN.length)%FN.length]; go(n.id); }
+
+/* ---------- Router ---------- */
+let cur='home';
+function go(id){ if(location.hash!=='#'+id){ location.hash=id; } else route(); }
+window.addEventListener('hashchange',()=>route());
+function route(keep){
+  const id=(location.hash||'#home').slice(1);
+  cur = byId[id]||GUIDES.find(g=>g.id===id) ? id : 'home';
+  const view=$('view'); const st=keep?view.scrollTop:0;
+  if(byId[cur]) renderCommand(byId[cur], !keep); else PAGES[cur]();
+  markNav(cur); view.scrollTop=st; if(!keep && innerWidth<=1100 && document.activeElement && document.activeElement.closest && document.activeElement.closest('nav')) view.scrollIntoView({block:'start'});
+}
+
+/* =========================================================
+   Command view
+   ========================================================= */
+function promptHTML(s,cwd){
+  const w = cwd ? '\\'+cwd.replace(/\//g,'\\') : '';
+  if(s==='cmd') return `<span class="pr">C:\\Users\\gk${esc(w)}&gt;</span>`;
+  if(s==='ps')  return `<span class="pr">PS C:\\Users\\gk${esc(w)}&gt;</span>`;
+  return `<span class="pu">gk@dev</span>:<span class="pp">~${cwd?'/'+esc(cwd):''}</span>$`;
+}
+function termHTML(e,s){
+  const cmd=e.c[s];
+  const bar=`<div class="term-bar"><span class="dots"><i></i><i></i><i></i></span>${SHN[s]}${s==='ps'&&e.al&&cmd?`<span class="al">alias: ${esc(e.al)}</span>`:''}${cmd?`<button class="cp" data-copy="${esc(cmd)}" aria-label="Copy ${SHN[s]} command">Copy</button>`:''}</div>`;
+  if(!cmd) return `<div class="term t-${s}" data-sh="${s}">${bar}<div class="term-body"><div class="na"><b>No direct equivalent</b>${esc(e.x||NO_CMD)}</div></div></div>`;
+  const out=(e.out&&e.out[s])||[];
+  let b=`<div>${promptHTML(s,'project')} <span class="cm" data-full="${esc(cmd)}">${esc(cmd)}</span></div>`;
+  out.forEach((l,i)=>{ const last=i===out.length-1 && e.noNext; b+=`<div class="o-line">${esc(l)||' '}${last?' <span class="cur"></span>':''}</div>`; });
+  if(!(e.noNext && out.length)) b+=`<div class="nx">${promptHTML(s,e.after||'project')} <span class="cur"></span></div>`;
+  return `<div class="term t-${s}" data-sh="${s}">${bar}<div class="term-body">${b}</div></div>`;
+}
+
+function anatomyHTML(e){
+  const src=e.c.sh||''; let pos=0, line='', items='';
+  e.an.forEach((a,i)=>{
+    const k=i===0?'k0':(a[0].startsWith('-')||a[0].startsWith('+')?'k1':'k2');
+    const at=src.indexOf(a[0],pos);
+    if(at>=0){ line+=esc(src.slice(pos,at))+`<span class="${k}" data-i="${i}">${esc(a[0])}</span>`; pos=at+a[0].length; }
+    items+=`<li data-i="${i}"><code>${esc(a[0])}</code><span>${esc(a[1])}</span></li>`;
+  });
+  line+=esc(src.slice(pos));
+  return `<div class="anat"><div class="line">${line}</div><ul>${items}</ul></div>`;
+}
+function wireAnatomy(root){
+  root.querySelectorAll('.anat [data-i]').forEach(el=>{
+    const on=v=>root.querySelectorAll(`.anat [data-i="${el.dataset.i}"]`).forEach(x=>x.classList.toggle('on',v));
+    el.addEventListener('mouseenter',()=>on(true)); el.addEventListener('mouseleave',()=>on(false));
+  });
+}
+
+/* folder tree */
+function treeHTML(e){
+  const v=e.viz, add=v.add||[], rm=v.rm||[], shw=v.show||[];
+  const tg=TAGS[e.id]||[];
+  const root={name:'project',key:'',dir:true,kids:new Map()};
+  [...BASE,...add].forEach(p=>{
+    const dir=p.endsWith('/'); const parts=p.replace(/\/$/,'').split('/'); let n=root, key='';
+    parts.forEach((part,i)=>{
+      const isDir = i<parts.length-1 || dir; key += part + (isDir?'/':'');
+      if(!n.kids.has(part)) n.kids.set(part,{name:part,key,dir:isDir,kids:new Map()});
+      n=n.kids.get(part);
+    });
+  });
+  const here=v.here, from=v.from!==undefined?v.from:v.here;
+  const node=n=>{
+    const cls=['nd',n.dir?'dir':''];
+    let tag='';
+    if(add.includes(n.key)){ cls.push('add'); tag+=`<span class="tag">${esc(tg[0]||'new')}</span>`; }
+    if(rm.includes(n.key)){ cls.push('del'); tag+=`<span class="tag">${esc(tg[1]||'deleted')}</span>`; }
+    if(shw.includes(n.key)){ cls.push('shw'); tag+=`<span class="tag">${esc(v.tag||'')}</span>`; }
+    if(here!==undefined && here===n.key) tag+=`<span class="tag t-now" style="background:var(--navy);color:var(--panel)">you are here</span>`;
+    if(from!==undefined && from===n.key) tag+=`<span class="tag t-was" style="background:var(--navy);color:var(--panel)">you are here</span>`;
+    const icon=n.name.includes(' -> ')?I_LINK:(n.dir?I_DIR:I_FILE);
+    const kids=[...n.kids.values()].sort((a,b)=>(b.dir-a.dir)||a.name.localeCompare(b.name));
+    return `<li><div class="${cls.join(' ')}">${icon}<span class="nm2">${esc(n.name)}${n.dir?'/':''}</span>${tag}</div>${kids.length?`<ul>${kids.map(node).join('')}</ul>`:''}</li>`;
+  };
+  const changes = add.length||rm.length||(v.from!==undefined && v.from!==v.here);
+  const head = changes ? `<div class="vizhead"><div class="seg" role="group" aria-label="Folder state"><button data-st="pre" aria-pressed="false">Before</button><button data-st="post" aria-pressed="true">After</button></div><span>${summary(add,rm,v)}</span></div>` : `<div class="vizhead"><span>${shw.length?'Highlighted: what the command reads.':'Your project folder.'}</span></div>`;
+  return `<div class="viz">${head}<ul class="tree" id="tree">${node(root)}</ul></div>`;
+}
+function summary(add,rm,v){
+  const p=[]; const a=add.filter(x=>!add.some(y=>y!==x && x.startsWith(y))).length; const r=rm.filter(x=>!rm.some(y=>y!==x && x.startsWith(y))).length;
+  if(a) p.push(a+' added'); if(r) p.push(r+' removed'); if(v.from!==undefined && v.from!==v.here) p.push('location changes');
+  return p.join(', ');
+}
+function setTreeState(pre){
+  const t=$('tree'); if(!t) return; t.classList.toggle('pre',pre);
+  document.querySelectorAll('.vizhead .seg button').forEach(b=>b.setAttribute('aria-pressed',(b.dataset.st==='pre')===pre?'true':'false'));
+}
+
+/* stages (text flowing through) */
+function stagesHTML(e){
+  const st=e.viz.st; let h='<div class="viz"><div class="vizhead"><span>'+(e.viz.cmp?'Highlighted lines are the ones that differ.':'Highlighted lines are the ones the command picks or changes.')+'</span></div><div class="stages">';
+  st.forEach((s,i)=>{
+    if(i) h+= e.viz.cmp ? '<span class="arrow" style="font:600 12px var(--sans);text-align:center;color:var(--muted)">vs</span>' : ARROW;
+    h+=`<div class="stage${s.dim?' dim':''}"><h4 title="${esc(s.l)}">${esc(s.l)}</h4><div>${s.v.map((l,j)=>`<p class="${(s.hl||[]).includes(j)?'hl':''}">${esc(l)}</p>`).join('')}</div></div>`;
+  });
+  return h+'</div></div>';
+}
+
+/* chmod builder */
+function permHTML(){ return `<div class="viz perm" id="perm"></div>`; }
+function renderPerm(oct){
+  const el=$('perm'); if(!el) return;
+  const bits=oct.split('').map(Number); const who=['Owner','Group','Others']; const rwx=[['r',4],['w',2],['x',1]];
+  let g='<div class="pgrid"><span></span><span class="h">read</span><span class="h">write</span><span class="h">execute</span><span class="h">digit</span>';
+  who.forEach((w,i)=>{ g+=`<span>${w}</span>`; rwx.forEach(([c,v])=>{ g+=`<button data-w="${i}" data-v="${v}" aria-pressed="${bits[i]&v?'true':'false'}" aria-label="${w} ${c}">${c}</button>`; }); g+=`<span class="dg">${bits[i]}</span>`; });
+  g+='</div>';
+  const sym='-'+bits.map(b=>(b&4?'r':'-')+(b&2?'w':'-')+(b&1?'x':'-')).join('');
+  const win=b=> b===7?'F':b===0?'none':'('+[b&4?'R':'',b&2?'W':'',b&1?'X':''].filter(Boolean).join(',')+')';
+  const presets=['644','755','600','700','777'].map(p=>`<button class="btn" data-preset="${p}">${p}</button>`).join(' ');
+  el.innerHTML=g+`<div class="pout"><div>Command: <code>chmod ${oct} deploy.sh</code> <button class="btn" data-copy="chmod ${oct} deploy.sh">Copy</button></div><div>ls -l shows: <code>${sym} 1 gk gk 120 deploy.sh</code></div><div>Closest Windows idea for the owner: <code>icacls deploy.sh /grant gk:${win(bits[0])}</code></div><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="color:var(--muted)">Common:</span>${presets}</div>${oct==='777'?'<div class="co danger" style="margin-top:4px"><b class="k">Danger</b>777 lets every user on the machine change or run this file.</div>':''}</div>`;
+  el.querySelectorAll('.pgrid button').forEach(b=>b.addEventListener('click',()=>{ const i=+b.dataset.w; bits[i]^=+b.dataset.v; renderPerm(bits.join('')); }));
+  el.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>renderPerm(b.dataset.preset)));
+}
+
+/* flags table */
+function cellHTML(t){
+  if(t==null) return '<span class="mu">no built-in</span>';
+  if(t==='—'||t.startsWith('—')) return '<span class="mu">'+esc(t)+'</span>';
+  if(/^\([a-z]/.test(t)) return '<span class="mu">'+esc(t.replace(/^\(|\)$/g,''))+'</span>';
+  const [c,...rest]=t.split('  ');
+  return `<code class="cpy" data-copy="${esc(c)}" title="Click to copy">${esc(c)}</code>${rest.length?' <span class="mu">'+esc(rest.join(' '))+'</span>':''}`;
+}
+function shTh(s){ return `<th><span class="th-sh c-${s}"><i></i>${SHN[s]}</span></th>`; }
+function flagsHTML(e){
+  const v=vis(); const idx={cmd:1,ps:2,sh:3};
+  let h=`<div class="wrapx"><table class="tbl"><thead><tr><th>Task</th>${v.map(shTh).join('')}</tr></thead><tbody>`;
+  h+=`<tr><td><b>${esc(e.t)}</b></td>${v.map(s=>`<td>${cellHTML(e.c[s])}</td>`).join('')}</tr>`;
+  (e.fl||[]).forEach(f=>{ h+=`<tr><td>${esc(f[0])}</td>${v.map(s=>`<td>${cellHTML(f[idx[s]])}</td>`).join('')}</tr>`; });
+  return h+'</tbody></table></div>';
+}
+const COK={tip:'Tip',warn:'Watch out',danger:'Danger'};
+function notesHTML(e){ return `<div class="cos">${(e.no||[]).map(n=>`<div class="co ${n[0]}"><b class="k">${COK[n[0]]}</b>${n[1]}</div>`).join('')}</div>`; }
+
+let known = new Set(store.get('known',[]));
+function qaItem(key,q,a,extra=''){
+  const k=known.has(key);
+  return `<details class="${k?'known':''}" data-key="${esc(key)}"><summary><span class="q">Q</span><span>${esc(q)}</span></summary><div class="a">${esc(a)}</div><div class="meta"><label><input type="checkbox" class="kn" ${k?'checked':''}> I can answer this</label>${extra}</div></details>`;
+}
+document.addEventListener('change',ev=>{
+  if(!ev.target.classList.contains('kn')) return;
+  const d=ev.target.closest('details'); const key=d.dataset.key;
+  ev.target.checked?known.add(key):known.delete(key); d.classList.toggle('known',ev.target.checked);
+  store.set('known',[...known]); if(cur==='interview') updateProgress();
+});
+
+let playTok=0;
+function renderCommand(e,auto){
+  playTok++;
+  const v=vis(); const i=FN.indexOf(e);
+  const lvl=`<span class="badge ${e.lvl}">${LVL[e.lvl]}</span>`;
+  const dng=e.d?'<span class="badge D">Can\'t be undone</span>':'';
+  const catName=CATS.find(c=>c.id===e.cat).name;
+  const sub=e.an[0][1]; const subTxt=sub.charAt(0).toUpperCase()+sub.slice(1)+'.';
+  let h=`<section class="panel"><div class="hero"><span class="nm">${esc(e.name)}</span><div class="tt"><h2>${esc(e.t)}</h2><p>${esc(subTxt)}</p></div><div class="badges">${lvl}${dng}<span class="badge">${esc(catName)}</span></div><div class="nav2"><button class="btn" id="prevC" aria-label="Previous command">${PREV}</button><span style="align-self:center;font-size:12px;color:var(--muted)">${i+1} / ${FN.length}</span><button class="btn" id="nextC" aria-label="Next command">${NEXT}</button></div></div></section>`;
+  h+=`<section class="panel"><div class="panel-head">Same task in each shell<span class="hint">Press <kbd style="font:11px var(--mono);border:1px solid var(--line);border-radius:4px;padding:0 4px">P</kbd> to replay</span><div class="player" style="margin-left:10px"><button class="btn primary" id="playBtn">${PLAY}Play</button></div></div><div class="terms" style="--n:${v.length}">${v.map(s=>termHTML(e,s)).join('')}</div></section>`;
+  const anat=`<section class="panel"><div class="panel-head">Anatomy of the Bash command<span class="hint">Hover a part</span></div>${anatomyHTML(e)}</section>`;
+  let viz='';
+  if(e.viz){
+    if(e.viz.st) viz=`<section class="panel"><div class="panel-head">How the text flows</div>${stagesHTML(e)}</section>`;
+    else if(e.viz.perm) viz=`<section class="panel"><div class="panel-head">Permission builder<span class="hint">Click r, w, x to try</span></div>${permHTML()}</section>`;
+    else viz=`<section class="panel"><div class="panel-head">What happens to the folder</div>${treeHTML(e)}</section>`;
+  }
+  h+= viz ? `<div class="row r46">${anat}${viz}</div>` : anat;
+  h+=`<section class="panel"><div class="panel-head">Options across shells<span class="hint">Click any command to copy it</span></div>${flagsHTML(e)}</section>`;
+  h+=`<div class="row r46"><section class="panel"><div class="panel-head">Call-outs</div>${notesHTML(e)}</section><section class="panel"><div class="panel-head">Interview questions<span class="hint">Click to reveal</span></div><div class="qa">${(e.qa||[]).map((q,j)=>qaItem(e.id+'#'+j,q[0],q[1])).join('')}</div></section></div>`;
+  const view=$('view'); view.innerHTML=h;
+  if(e.viz&&e.viz.perm) renderPerm(e.viz.perm);
+  wireAnatomy(view);
+  $('prevC').onclick=()=>step(-1); $('nextC').onclick=()=>step(1);
+  $('playBtn').onclick=play;
+  view.querySelectorAll('.vizhead .seg button').forEach(b=>b.addEventListener('click',()=>setTreeState(b.dataset.st==='pre')));
+  if(auto && !reduced) play();
+}
+
+async function play(){
+  const tok=++playTok; const terms=[...document.querySelectorAll('.term')];
+  const parts=terms.map(t=>({cm:t.querySelector('.cm'),lines:[...t.querySelectorAll('.o-line')],nx:t.querySelector('.nx'),body:t.querySelector('.term-body')})).filter(p=>p.cm);
+  if(!parts.length) return;
+  setTreeState(true);
+  parts.forEach(p=>{ p.cm.textContent=''; p.lines.forEach(l=>l.hidden=true); if(p.nx) p.nx.hidden=true; p.cm.insertAdjacentHTML('afterend','<span class="cur tmp"></span>'); });
+  const maxLen=Math.max(...parts.map(p=>p.cm.dataset.full.length));
+  const dt=Math.max(12,Math.min(38,1100/maxLen));
+  for(let i=1;i<=maxLen;i++){
+    if(tok!==playTok) return;
+    parts.forEach(p=>{ const f=p.cm.dataset.full; if(i<=f.length) p.cm.textContent=f.slice(0,i); });
+    await sleep(dt);
+  }
+  await sleep(260); if(tok!==playTok) return;
+  parts.forEach(p=>p.body.querySelectorAll('.cur.tmp').forEach(c=>c.remove()));
+  const maxL=Math.max(0,...parts.map(p=>p.lines.length));
+  for(let j=0;j<maxL;j++){
+    if(tok!==playTok) return;
+    parts.forEach(p=>{ if(p.lines[j]){ p.lines[j].hidden=false; } });
+    await sleep(55);
+  }
+  parts.forEach(p=>{ if(p.nx) p.nx.hidden=false; p.body.scrollTop=0; });
+  await sleep(250); if(tok!==playTok) return;
+  setTreeState(false);
+}
+
+/* =========================================================
+   Guide pages
+   ========================================================= */
+const PAGES={};
+function page(html){ playTok++; $('view').innerHTML=`<section class="panel"><div class="page">${html}</div></section>`; }
+
+PAGES.home=()=>{
+  page(`<p class="welcome">Welcome to Visualized Shell</p>
+  <h2>Same task, different words</h2>
+  <p class="lede">Windows, macOS and Linux all let you work by typing commands, but each shell has its own vocabulary. Pick any task on the left and see it written for CMD, PowerShell and Bash side by side, then watch it run.</p>
+  <button class="btn primary" data-go="start">Open Start here</button>`);
+};
+PAGES.start=()=>{
+  page(`<h2>Start here</h2>
+  <p class="lede">What a shell is, which one you are using, and how to get the most out of this tool.</p>
+  <h3 style="margin-top:0">What you are actually typing into</h3>
+  <div class="stack">
+    <div class="layer"><b>Terminal</b>The window. It draws text and sends your keystrokes on.<div class="eg">Windows Terminal, macOS Terminal, VS Code's panel, Git Bash's window</div></div>
+    <div class="layer mid"><b>Shell</b>The language. It reads your command and runs it. This is what changes the words you type.<div class="eg">CMD, PowerShell, bash, zsh</div></div>
+    <div class="layer"><b>Operating system</b>Does the real work: files, processes, network.<div class="eg">Windows, macOS, Linux</div></div>
+  </div>
+  <p style="color:var(--muted);font-size:13.5px">So "Windows Terminal" isn't a shell. It usually opens PowerShell, and can open CMD or Ubuntu (WSL) in other tabs.</p>
+  <h3>Which shell am I in?</h3>
+  <div class="cardtbl"><div class="wrapx"><table class="tbl"><thead><tr><th>If you opened…</th><th>You are in</th><th>Use the column</th></tr></thead><tbody>
+   <tr><td>Command Prompt</td><td>CMD</td><td>${chip('cmd')}</td></tr>
+   <tr><td>Windows Terminal, or the PowerShell app</td><td>PowerShell (check the tab's name)</td><td>${chip('ps')}</td></tr>
+   <tr><td>Git Bash</td><td>bash, with Windows drives at <code>/c/</code></td><td>${chip('sh')}</td></tr>
+   <tr><td>macOS Terminal</td><td>zsh (bash on Macs before 2019)</td><td>${chip('sh')}</td></tr>
+   <tr><td>Linux terminal, WSL, a server over SSH</td><td>bash, usually</td><td>${chip('sh')}</td></tr>
+   <tr><td>VS Code terminal</td><td>whatever the dropdown next to + says</td><td><span class="mu">depends</span></td></tr>
+  </tbody></table></div></div>
+  <p style="color:var(--muted);font-size:13.5px">Not sure? Type <code>echo $0</code>. Bash and zsh print their name; PowerShell prints nothing useful but <code>$PSVersionTable</code> works there; CMD prints <code>$0</code> back at you.</p>
+  <h3>Three families</h3>
+  <div class="fam">
+   <div class="famc"><div class="tb" style="background:var(--t-cmd)">CMD<span>.bat .cmd</span></div><ul><li>The classic Windows shell, unchanged for decades.</li><li>Short commands with <code>/switches</code>.</li><li>Fine for basics; weak at text processing.</li></ul></div>
+   <div class="famc"><div class="tb" style="background:var(--t-ps)">PowerShell<span>.ps1</span></div><ul><li>Verb-Noun names: <code>Get-ChildItem</code>, <code>Stop-Process</code>.</li><li>Pipes objects, not text.</li><li>Has Linux-style aliases (<code>ls</code>, <code>cat</code>), but not their flags.</li></ul></div>
+   <div class="famc"><div class="tb" style="background:var(--t-sh)">Bash / zsh<span>.sh</span></div><ul><li>Linux, macOS, Git Bash, WSL and most servers.</li><li>Small tools chained with pipes.</li><li>Short <code>-flags</code>, case-sensitive file names.</li></ul></div>
+  </div>
+  <h3>How to use this</h3>
+  <div class="howto"><div>Pick a task on the left, or type a command you already know into search.</div><div>Watch it run in each shell. Press Play or <b>P</b> to replay.</div><div>Read the anatomy and the visual to see what each part does.</div><div>Check the options, call-outs and interview questions before moving on.</div></div>
+  <h3>Try a search</h3>
+  <div class="tryrow">${['dir','Get-ChildItem','findstr','taskkill','ipconfig','Select-String','rm -rf','chmod'].map(t=>`<button data-try="${esc(t)}">${esc(t)}</button>`).join('')}</div>`);
+  $('view').querySelectorAll('[data-try]').forEach(b=>b.addEventListener('click',()=>{ $('search').value=b.dataset.try; runSearch(); $('search').focus(); }));
+};
+function chip(s){ return `<span class="th-sh c-${s}" style="font-size:12.5px;font-weight:600"><i></i>${SHN[s]}</span>`; }
+
+const SYNTAX=[
+ [`Path separator`,`\\`,`\\  (/ also works)`,`/`],
+ [`Home folder`,`%USERPROFILE%`,`~  or  $HOME`,`~  or  $HOME`],
+ [`Read a variable`,`%NAME%`,`$env:NAME`,`$NAME`],
+ [`Set a variable`,`set NAME=dev`,`$env:NAME = "dev"`,`export NAME=dev`],
+ [`Escape character`,`^`,"` (backtick)",`\\`],
+ [`Continue on next line`,`^`,"`",`\\`],
+ [`Literal text`,`(no single quotes; "..." only)`,`'text'`,`'text'`],
+ [`Text with variables`,`"%NAME%"`,`"$NAME"`,`"$NAME"`],
+ [`Comment`,`REM text  (or :: in .bat)`,`# text`,`# text`],
+ [`Discard output`,`> nul`,`| Out-Null`,`> /dev/null`],
+ [`Last exit code`,`%ERRORLEVEL%`,`$LASTEXITCODE`,`$?`],
+ [`Who expands *.txt`,`(each program does)`,`(each cmdlet does)`,`(the shell, before running)`],
+ [`File names case-sensitive`,`(no)`,`(no, on Windows)`,`(yes on Linux; no by default on macOS)`],
+ [`Line endings in scripts`,`CRLF`,`CRLF or LF`,`LF only`],
+ [`Run a script here`,`build.bat`,`.\\build.ps1`,`./build.sh`],
+ [`Get help`,`dir /?`,`Get-Help Get-ChildItem`,`man ls  (or ls --help)`],
+ [`Previous command`,`↑  or  F3`,`↑`,`↑  or  !!`]
+];
+PAGES.syntax=()=>{
+  const v=vis(); const idx={cmd:1,ps:2,sh:3};
+  page(`<h2>Syntax differences</h2><p class="lede">Most mistakes when switching shells aren't about command names. They come from paths, quotes and variables. Keep this table close.</p>
+  <div class="cardtbl"><div class="wrapx"><table class="tbl"><thead><tr><th>What</th>${v.map(shTh).join('')}</tr></thead><tbody>${SYNTAX.map(r=>`<tr><td>${esc(r[0])}</td>${v.map(s=>`<td>${cellHTML(r[idx[s]])}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>
+  <h3>Three traps worth remembering</h3>
+  <div class="cos" style="padding:0"><div class="co warn"><b class="k">Watch out</b>A bash script saved with Windows line endings fails with <code>bad interpreter: /bin/bash^M</code>. Save it as LF.</div><div class="co warn"><b class="k">Watch out</b>PowerShell won't run scripts from the current folder by name alone. Type <code>.\\build.ps1</code>, and allow local scripts once with <code>Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</code>.</div><div class="co"><b class="k">Tip</b>In CMD, <code>%</code> becomes <code>%%</code> inside .bat files, for example in <code>for</code> loops.</div></div>`);
+};
+
+PAGES.cheat=()=>{
+  const v=vis();
+  let rows='';
+  CATS.forEach(c=>{
+    rows+=`<tr class="cs-cat"><td colspan="${v.length+1}">${esc(c.name)}</td></tr>`;
+    FN.filter(e=>e.cat===c.id).forEach(e=>{ rows+=`<tr><td><button class="linkish" data-go="${e.id}">${esc(e.t)}</button>${e.d?' <span class="badge D">Can\'t be undone</span>':''}</td>${v.map(s=>`<td>${cellHTML(e.c[s])}</td>`).join('')}</tr>`; });
+  });
+  page(`<h2>Cheat sheet</h2><p class="lede">Every task in one table. Click a command to copy it, or a task to open its full page. Use the switch at the top to hide shells you don't use.</p>
+  <div class="cardtbl"><div class="wrapx"><table class="tbl"><thead><tr><th>Task</th>${v.map(shTh).join('')}</tr></thead><tbody>${rows}</tbody></table></div></div>`);
+};
+
+let qFilter='all', hideKnown=false;
+function allQs(){
+  const list=GEN.map((q,i)=>({key:'gen#'+i,cat:'gen',q:q[0],a:q[1]}));
+  FN.forEach(e=>(e.qa||[]).forEach((q,j)=>list.push({key:e.id+'#'+j,cat:e.cat,id:e.id,name:e.name,q:q[0],a:q[1]})));
+  return list;
+}
+function updateProgress(){
+  const all=allQs(); const n=all.filter(x=>known.has(x.key)).length;
+  const p=$('qprog'); if(p){ p.querySelector('i').style.width=(100*n/all.length)+'%'; $('qcount').textContent=`${n} of ${all.length} marked as known`; }
+  if(hideKnown) document.querySelectorAll('#qlist details').forEach(d=>{ if(known.has(d.dataset.key)) d.hidden=true; });
+}
+PAGES.interview=()=>{
+  const all=allQs();
+  const cats=[['all','All'],['gen','General'],...CATS.map(c=>[c.id,c.name])];
+  const groups=qFilter==='all'?[['gen','General'],...CATS.map(c=>[c.id,c.name])]:cats.filter(c=>c[0]===qFilter);
+  let list='';
+  groups.forEach(([id,name])=>{
+    const qs=all.filter(x=>x.cat===id && !(hideKnown&&known.has(x.key)));
+    if(!qs.length) return;
+    list+=`<div class="qgroup">${esc(name)}</div>`+qs.map(x=>qaItem(x.key,x.q,x.a,x.id?`<a data-go="${x.id}">Open ${esc(x.name)}</a>`:'')).join('');
+  });
+  page(`<h2>Interview prep</h2><p class="lede">Shell questions come up in support, DevOps, data and developer interviews. Answer out loud first, then open the card. Tick the ones you can explain; your progress stays in this browser.</p>
+  <div class="progress"><div class="bar" id="qprog"><i></i></div><span id="qcount"></span></div>
+  <div class="filters">${cats.map(c=>`<button data-qf="${c[0]}" aria-pressed="${qFilter===c[0]}">${esc(c[1])}</button>`).join('')}<label style="margin-left:8px;font-size:13px;display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="hideK" ${hideKnown?'checked':''}> Hide the ones I know</label></div>
+  <div class="qa" id="qlist">${list||'<p style="color:var(--muted)">Nothing left here. Untick "Hide the ones I know" to review again.</p>'}</div>`);
+  updateProgress();
+  $('view').querySelectorAll('[data-qf]').forEach(b=>b.addEventListener('click',()=>{ qFilter=b.dataset.qf; PAGES.interview(); }));
+  $('hideK').addEventListener('change',ev=>{ hideKnown=ev.target.checked; PAGES.interview(); });
+};
+
+/* ---------- Boot: every load or refresh starts at the home page ---------- */
+buildNav();
+if(location.hash){ try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){ location.hash=''; } }
+$('search').value='';
+route();
+$('view').scrollTop=0;
+document.querySelector('.brand').style.cursor='pointer';
+document.querySelector('.brand').addEventListener('click',()=>{ if(location.hash){ try{ history.pushState(null,'',location.pathname+location.search); }catch(e){} } route(); });
+</script>
+</body>
+</html>
